@@ -2,10 +2,10 @@ import Generator from './Generator.jsx'
 import Number from './Number.jsx'
 import { getItemType } from './itemTypes.js'
 
-function Item({ item, dragging, snapping, offset, onPointerDown }) {
+function Item({ item, dragging, snapping, merged, offset, onPointerDown }) {
   const { fontOverride } = getItemType(item.type)
 
-  const className = ['item', dragging && 'dragging', snapping && 'snapping']
+  const className = ['item', dragging && 'dragging', snapping && 'snapping', merged && 'merged']
     .filter(Boolean)
     .join(' ')
 

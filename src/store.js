@@ -69,6 +69,28 @@ function initialCells() {
   return loadSavedCells() ?? Array.from({ length: CELL_COUNT }, emptyCell)
 }
 
+// Two items merge only if both are Numbers of the same item type and value, so
+// t1 + t1 works but t1 + t2 and t1 + c1 do not. Generators never merge.
+export function canMerge(source, target) {
+  return (
+    source?.kind === 'number' &&
+    target?.kind === 'number' &&
+    source.type === target.type &&
+    source.value === target.value
+  )
+}
+
+// 'move' | 'merge' | null, where null means the drop is invalid and the dragged
+// item should snap back.
+export function dropOutcome(cells, from, to) {
+  if (from === to) return null
+  const source = cells[from]
+  const target = cells[to]
+  if (!source?.item || !target?.enabled) return null
+  if (!target.item) return 'move'
+  return canMerge(source.item, target.item) ? 'merge' : null
+}
+
 const gridSlice = createSlice({
   name: 'grid',
   initialState: {
@@ -85,13 +107,21 @@ const gridSlice = createSlice({
       target.item = source.item
       source.item = null
     },
+    mergeItems: (state, action) => {
+      const { from, to } = action.payload
+      const source = state.cells[from]
+      const target = state.cells[to]
+      if (!target?.enabled || !canMerge(source?.item, target.item)) return
+      target.item = { ...target.item, value: source.item.value + target.item.value }
+      source.item = null
+    },
     resetBoard: (state) => {
       state.cells = Array.from({ length: CELL_COUNT }, emptyCell)
     },
   },
 })
 
-export const { moveItem, resetBoard } = gridSlice.actions
+export const { moveItem, mergeItems, resetBoard } = gridSlice.actions
 
 export const store = configureStore({
   reducer: { grid: gridSlice.reducer },

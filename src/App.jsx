@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { moveItem } from './store.js'
+import { dropOutcome, mergeItems, moveItem } from './store.js'
 import Cell from './Cell.jsx'
 import './App.css'
 
 const TITLE = 'NUMBER SEQUEL'
+const SNAP_MS = 150
+// Slightly longer than the merge-pulse animation so it isn't cut off.
+const MERGE_PULSE_MS = 260
 
 function cellIndexAt(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('[data-index]')
@@ -19,7 +22,10 @@ function App() {
   const [drag, setDrag] = useState(null)
   // Index of an item animating back after an invalid drop.
   const [snapping, setSnapping] = useState(null)
+  // Index of the item pulsing after a successful merge.
+  const [merged, setMerged] = useState(null)
   const snapTimeout = useRef(null)
+  const mergeTimeout = useRef(null)
 
   const handlePointerDown = useCallback(
     (index) => (event) => {
@@ -45,14 +51,19 @@ function App() {
 
     const onUp = (event) => {
       const to = cellIndexAt(event.clientX, event.clientY)
-      const valid = to !== null && to !== drag.index && cells[to].enabled && !cells[to].item
+      const outcome = to === null ? null : dropOutcome(cells, drag.index, to)
 
-      if (valid) {
+      if (outcome === 'move') {
         dispatch(moveItem({ from: drag.index, to }))
+      } else if (outcome === 'merge') {
+        dispatch(mergeItems({ from: drag.index, to }))
+        setMerged(to)
+        clearTimeout(mergeTimeout.current)
+        mergeTimeout.current = setTimeout(() => setMerged(null), MERGE_PULSE_MS)
       } else {
         setSnapping(drag.index)
         clearTimeout(snapTimeout.current)
-        snapTimeout.current = setTimeout(() => setSnapping(null), 150)
+        snapTimeout.current = setTimeout(() => setSnapping(null), SNAP_MS)
       }
       setDrag(null)
     }
@@ -67,7 +78,13 @@ function App() {
     }
   }, [drag, cells, dispatch])
 
-  useEffect(() => () => clearTimeout(snapTimeout.current), [])
+  useEffect(
+    () => () => {
+      clearTimeout(snapTimeout.current)
+      clearTimeout(mergeTimeout.current)
+    },
+    [],
+  )
 
   return (
     <>
@@ -93,6 +110,7 @@ function App() {
             item={cell.item}
             dragging={drag?.index === index}
             snapping={snapping === index}
+            merged={merged === index}
             offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
             onItemPointerDown={handlePointerDown(index)}
           />

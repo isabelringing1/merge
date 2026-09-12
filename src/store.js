@@ -1,5 +1,6 @@
 import { configureStore, createSlice } from '@reduxjs/toolkit'
 import { DEBUG_GRID } from './debug.js'
+import { getItemType } from './itemTypes.js'
 
 export const COLS = 6
 export const ROWS = 9
@@ -9,11 +10,25 @@ const STORAGE_KEY = 'merge.board.v1'
 
 const emptyCell = () => ({ enabled: true, item: null })
 
+// '<type>G' -> generator, '<type><int>' -> number. The type prefix is required.
+function itemFromDebugValue(value) {
+  const match = typeof value === 'string' && /^([a-z]+)(G|\d+)$/i.exec(value)
+  if (!match) {
+    throw new Error(
+      `Debug grid value ${JSON.stringify(value)} is missing an item type - write e.g. 't1', 'tG' or 'c1'`,
+    )
+  }
+  const [, typeId, body] = match
+  getItemType(typeId)
+  return body === 'G'
+    ? { kind: 'generator', type: typeId }
+    : { kind: 'number', type: typeId, value: Number(body) }
+}
+
 function cellFromDebugValue(value) {
   if (value === null || value === undefined) return { enabled: false, item: null }
   if (value === 0) return emptyCell()
-  if (value === 'G') return { enabled: true, item: { type: 'generator' } }
-  return { enabled: true, item: { type: 'number', value } }
+  return { enabled: true, item: itemFromDebugValue(value) }
 }
 
 function cellsFromDebugGrid(rows) {
@@ -26,19 +41,25 @@ function cellsFromDebugGrid(rows) {
   return cells
 }
 
+function savedItem(item) {
+  getItemType(item?.type)
+  if (item.kind === 'generator') return { kind: 'generator', type: item.type }
+  if (item.kind === 'number' && Number.isInteger(item.value)) {
+    return { kind: 'number', type: item.type, value: item.value }
+  }
+  throw new Error(`Invalid saved item ${JSON.stringify(item)}`)
+}
+
 function loadSavedCells() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
     if (!Array.isArray(saved) || saved.length !== CELL_COUNT) return null
     return saved.map((cell) => ({
       enabled: Boolean(cell?.enabled),
-      item: cell?.item?.type === 'generator'
-        ? { type: 'generator' }
-        : typeof cell?.item?.value === 'number'
-          ? { type: 'number', value: cell.item.value }
-          : null,
+      item: cell?.item ? savedItem(cell.item) : null,
     }))
   } catch {
+    // Unreadable or typeless board (saved before item types existed) - start fresh.
     return null
   }
 }

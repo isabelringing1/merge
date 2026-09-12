@@ -1,17 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { dropOutcome, mergeItems, moveItem } from './store.js'
+import { dropOutcome, mergeItems, moveItem, nearestOpenCell, spawnItem } from './store.js'
 import Cell from './Cell.jsx'
 import './App.css'
 
 const TITLE = 'NUMBER SEQUEL'
 const SNAP_MS = 150
-// Slightly longer than the merge-pulse animation so it isn't cut off.
-const MERGE_PULSE_MS = 260
+const SPAWN_MS = 280
+// Small buffer so an item becomes grabbable strictly after it has landed.
+const SPAWN_SETTLE_MS = 60
+// Pointer movement (px) allowed before a press counts as a drag instead of a tap.
+const TAP_SLOP = 8
 
 function cellIndexAt(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('[data-index]')
   return el ? Number(el.dataset.index) : null
+}
+
+function cellCenter(index) {
+  const rect = document.querySelector(`[data-index="${index}"]`)?.getBoundingClientRect()
+  return rect && { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
 }
 
 function App() {
@@ -22,10 +30,53 @@ function App() {
   const [drag, setDrag] = useState(null)
   // Index of an item animating back after an invalid drop.
   const [snapping, setSnapping] = useState(null)
-  // Index of the item pulsing after a successful merge.
-  const [merged, setMerged] = useState(null)
+  // Which cell's item is pulsing, and an id that changes on every pulse so the
+  // same cell can pulse repeatedly.
+  const [pulse, setPulse] = useState(null)
+  // Items currently flying out of a generator, keyed by destination cell. They
+  // are inert until they land, and several can be in the air at once.
+  const [spawns, setSpawns] = useState({})
   const snapTimeout = useRef(null)
-  const mergeTimeout = useRef(null)
+  const spawnTimeouts = useRef(new Set())
+  const pulseId = useRef(0)
+
+  const pulseItem = useCallback((index) => {
+    pulseId.current += 1
+    setPulse({ index, id: pulseId.current })
+  }, [])
+
+  // Spawns a value-1 item into the nearest open cell and tweens it out of the
+  // generator. Generators with nowhere to spawn still pulse.
+  const spawnFrom = useCallback(
+    (from, cells) => {
+      pulseItem(from)
+
+      const to = nearestOpenCell(cells, from)
+      if (to === null) return
+
+      // Measured before the dispatch, while both cells are still on screen.
+      const origin = cellCenter(from)
+      const destination = cellCenter(to)
+      dispatch(spawnItem({ from, to }))
+
+      if (!origin || !destination) return
+      const flight = { dx: origin.x - destination.x, dy: origin.y - destination.y }
+      setSpawns((current) => ({ ...current, [to]: flight }))
+
+      const timeout = setTimeout(() => {
+        spawnTimeouts.current.delete(timeout)
+        setSpawns((current) => {
+          // Leave it alone if a newer spawn has already claimed this cell.
+          if (current[to] !== flight) return current
+          const next = { ...current }
+          delete next[to]
+          return next
+        })
+      }, SPAWN_MS + SPAWN_SETTLE_MS)
+      spawnTimeouts.current.add(timeout)
+    },
+    [dispatch, pulseItem],
+  )
 
   const handlePointerDown = useCallback(
     (index) => (event) => {
@@ -50,6 +101,14 @@ function App() {
     }
 
     const onUp = (event) => {
+      // A press that barely moved is a tap. Tapping a generator spawns from it;
+      // tapping anything else does nothing.
+      if (Math.hypot(drag.x, drag.y) <= TAP_SLOP) {
+        if (cells[drag.index].item.kind === 'generator') spawnFrom(drag.index, cells)
+        setDrag(null)
+        return
+      }
+
       const to = cellIndexAt(event.clientX, event.clientY)
       const outcome = to === null ? null : dropOutcome(cells, drag.index, to)
 
@@ -57,9 +116,7 @@ function App() {
         dispatch(moveItem({ from: drag.index, to }))
       } else if (outcome === 'merge') {
         dispatch(mergeItems({ from: drag.index, to }))
-        setMerged(to)
-        clearTimeout(mergeTimeout.current)
-        mergeTimeout.current = setTimeout(() => setMerged(null), MERGE_PULSE_MS)
+        pulseItem(to)
       } else {
         setSnapping(drag.index)
         clearTimeout(snapTimeout.current)
@@ -76,12 +133,13 @@ function App() {
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [drag, cells, dispatch])
+  }, [drag, cells, dispatch, pulseItem, spawnFrom])
 
   useEffect(
     () => () => {
       clearTimeout(snapTimeout.current)
-      clearTimeout(mergeTimeout.current)
+      spawnTimeouts.current.forEach(clearTimeout)
+      spawnTimeouts.current.clear()
     },
     [],
   )
@@ -110,7 +168,9 @@ function App() {
             item={cell.item}
             dragging={drag?.index === index}
             snapping={snapping === index}
-            merged={merged === index}
+            pulse={pulse?.index === index ? pulse.id : null}
+            spawn={spawns[index] ?? null}
+            spawnMs={SPAWN_MS}
             offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
             onItemPointerDown={handlePointerDown(index)}
           />

@@ -80,6 +80,23 @@ export function canMerge(source, target) {
   )
 }
 
+// Nearest enabled, empty cell to `index`, or null if the board has none. Ranked
+// by straight-line distance, so the eight surrounding cells come first; ties
+// break top-to-bottom, left-to-right.
+export function nearestOpenCell(cells, index) {
+  const fromRow = Math.floor(index / COLS)
+  const fromCol = index % COLS
+  let best = null
+
+  for (let i = 0; i < cells.length; i++) {
+    if (i === index || !cells[i].enabled || cells[i].item) continue
+    const distance = (Math.floor(i / COLS) - fromRow) ** 2 + ((i % COLS) - fromCol) ** 2
+    if (best === null || distance < best.distance) best = { index: i, distance }
+  }
+
+  return best?.index ?? null
+}
+
 // 'move' | 'merge' | null, where null means the drop is invalid and the dragged
 // item should snap back.
 export function dropOutcome(cells, from, to) {
@@ -115,13 +132,22 @@ const gridSlice = createSlice({
       target.item = { ...target.item, value: source.item.value + target.item.value }
       source.item = null
     },
+    // Drops a value-1 number of the generator's own type into `to`, which the
+    // caller picks with nearestOpenCell so it can animate along the same path.
+    spawnItem: (state, action) => {
+      const { from, to } = action.payload
+      const generator = state.cells[from]?.item
+      const target = state.cells[to]
+      if (generator?.kind !== 'generator' || !target?.enabled || target.item) return
+      target.item = { kind: 'number', type: generator.type, value: 1 }
+    },
     resetBoard: (state) => {
       state.cells = Array.from({ length: CELL_COUNT }, emptyCell)
     },
   },
 })
 
-export const { moveItem, mergeItems, resetBoard } = gridSlice.actions
+export const { moveItem, mergeItems, spawnItem, resetBoard } = gridSlice.actions
 
 export const store = configureStore({
   reducer: { grid: gridSlice.reducer },

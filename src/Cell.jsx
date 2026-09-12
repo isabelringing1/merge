@@ -1,6 +1,17 @@
 import Item from './Item.jsx'
 
-function Cell({ index, enabled, item, dragging, snapping, merged, offset, onItemPointerDown }) {
+function Cell({
+  index,
+  enabled,
+  item,
+  dragging,
+  snapping,
+  pulse,
+  spawn,
+  spawnMs,
+  offset,
+  onItemPointerDown,
+}) {
   return (
     <div className={`cell ${enabled ? 'enabled' : 'disabled'}`} data-index={index}>
       {enabled && item && (
@@ -8,7 +19,9 @@ function Cell({ index, enabled, item, dragging, snapping, merged, offset, onItem
           item={item}
           dragging={dragging}
           snapping={snapping}
-          merged={merged}
+          pulse={pulse}
+          spawn={spawn}
+          spawnMs={spawnMs}
           offset={offset}
           onPointerDown={onItemPointerDown}
         />

@@ -77,26 +77,15 @@
   z-index: 3;
 }
 
+/* Mid-spawn items are still in flight, so they can't be grabbed yet. */
+.item.spawning {
+  pointer-events: none;
+  cursor: default;
+}
+
 .item.snapping {
   z-index: 3;
   transition: transform 0.15s ease-out;
-}
-
-.item.merged {
-  z-index: 2;
-  animation: merge-pulse 0.22s ease-out;
-}
-
-@keyframes merge-pulse {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(1.35);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 
 @media (max-width: 600px) {

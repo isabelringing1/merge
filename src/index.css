@@ -1,0 +1,18 @@
+html,
+body {
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  width: 100vw;
+  height: 100dvh;
+  position: relative;
+  background: #fff;
+  color: #000;
+  font-family: Helvetica;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}

@@ -1,0 +1,90 @@
+/* Marquee title, matching NUMBER GACHA */
+.goal-container {
+  position: absolute;
+  font-size: 1.5dvh;
+  font-weight: bold;
+  top: 1dvh;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.marquee-track {
+  display: inline-flex;
+  animation: marquee-scroll 120s linear infinite;
+}
+
+.marquee-text {
+  white-space: nowrap;
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Board */
+.board {
+  --cell: min(14vw, 7dvh);
+  position: absolute;
+  top: 5dvh;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 1px;
+  border: 1px solid #000;
+  background: #e6e6e6;
+}
+
+.cell {
+  position: relative;
+  touch-action: none;
+}
+
+.cell.enabled {
+  background: #fff;
+}
+
+.cell.disabled {
+  background: #d9d9d9;
+}
+
+/* Items */
+.item {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Times New Roman', Times, serif;
+  font-weight: bold;
+  font-size: calc(var(--cell) * 0.55);
+  line-height: 1;
+  color: #000;
+  cursor: grab;
+  touch-action: none;
+}
+
+.item.dragging {
+  cursor: grabbing;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.item.snapping {
+  z-index: 3;
+  transition: transform 0.15s ease-out;
+}
+
+@media (max-width: 600px) {
+  .goal-container {
+    font-size: 2dvh;
+    top: 0;
+  }
+}

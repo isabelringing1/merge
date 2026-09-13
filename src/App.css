@@ -33,9 +33,9 @@
 .board {
   --cell: min(14vw, 7dvh);
   position: absolute;
-  top: 5dvh;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   display: grid;
   gap: 1px;
   border: 1px solid #000;
@@ -71,6 +71,12 @@
   touch-action: none;
 }
 
+.item > .number,
+.item > .generator {
+  -webkit-text-stroke: 3px var(--item-outline-color);
+  paint-order: stroke fill;
+}
+
 .item.dragging {
   cursor: grabbing;
   pointer-events: none;
@@ -92,5 +98,10 @@
   .goal-container {
     font-size: 2dvh;
     top: 0;
+  }
+
+  .board {
+    top: auto;
+    bottom: 20dvh;
   }
 }

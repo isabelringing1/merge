@@ -1,5 +1,5 @@
 import { configureStore, createSlice } from '@reduxjs/toolkit'
-import { DEBUG_GRID } from './debug.js'
+import { DEBUG_GRID, DEFAULT_BOARD_STATE } from './debug.js'
 import { getItemType } from './itemTypes.js'
 
 export const COLS = 6
@@ -66,7 +66,7 @@ function loadSavedCells() {
 
 function initialCells() {
   if (DEBUG_GRID) return cellsFromDebugGrid(DEBUG_GRID)
-  return loadSavedCells() ?? Array.from({ length: CELL_COUNT }, emptyCell)
+  return loadSavedCells() ?? cellsFromDebugGrid(DEFAULT_BOARD_STATE)
 }
 
 // Two items merge only if both are Numbers of the same item type and value, so

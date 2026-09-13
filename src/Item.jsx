@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import Generator from './Generator.jsx'
 import Number from './Number.jsx'
+import { attachHaptic } from './haptics.js'
 import { getItemType } from './itemTypes.js'
 
 const PULSE_KEYFRAMES = [
@@ -28,11 +29,19 @@ function spawnKeyframes(dx, dy, lift) {
 }
 
 function Item({ item, dragging, snapping, pulse, spawn, offset, spawnMs, onPointerDown }) {
-  const { fontOverride } = getItemType(item.type)
+  const { fontOverride, fontWeight, outlineColor } = getItemType(item.type)
   const element = useRef(null)
   // Each pulse carries a new id so repeated pulses on the same cell replay the
   // animation. Seeded with the mount value so mounting never pulses.
   const lastPulse = useRef(pulse)
+
+  const setElement = useCallback(
+    (node) => {
+      element.current = node
+      if (item.kind === 'generator') attachHaptic(node)
+    },
+    [item.kind],
+  )
 
   useEffect(() => {
     if (pulse === null || pulse === lastPulse.current) return
@@ -57,11 +66,12 @@ function Item({ item, dragging, snapping, pulse, spawn, offset, spawnMs, onPoint
     .filter(Boolean)
     .join(' ')
 
-  const style = { fontFamily: fontOverride }
+  const style = { fontFamily: fontOverride, '--item-outline-color': outlineColor }
+  if (fontWeight !== undefined) style.fontWeight = fontWeight
   if (dragging) style.transform = `translate(${offset.x}px, ${offset.y}px)`
 
   return (
-    <div ref={element} className={className} style={style} onPointerDown={onPointerDown}>
+    <div ref={setElement} className={className} style={style} onPointerDown={onPointerDown}>
       {item.kind === 'generator' ? <Generator /> : <Number value={item.value} />}
     </div>
   )

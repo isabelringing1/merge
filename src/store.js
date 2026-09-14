@@ -8,7 +8,7 @@ export const ROWS = 9
 const CELL_COUNT = COLS * ROWS
 const STORAGE_KEY = 'merge.board.v1'
 
-const emptyCell = () => ({ enabled: true, item: null })
+const emptyCell = () => ({ enabled: true, locked: false, item: null })
 
 // '<type>G' -> generator, '<type><int>' -> number. The type prefix is required.
 function itemFromDebugValue(value) {
@@ -26,9 +26,17 @@ function itemFromDebugValue(value) {
 }
 
 function cellFromDebugValue(value) {
-  if (value === null || value === undefined) return { enabled: false, item: null }
+  if (value === null || value === undefined) {
+    return { enabled: false, locked: false, item: null }
+  }
   if (value === 0) return emptyCell()
-  return { enabled: true, item: itemFromDebugValue(value) }
+
+  const lockedMatch = typeof value === 'string' && /^\{(.+)\}$/.exec(value)
+  const item = itemFromDebugValue(lockedMatch ? lockedMatch[1] : value)
+  if (lockedMatch && item.kind !== 'number') {
+    throw new Error(`Locked cell ${JSON.stringify(value)} must contain a Number`)
+  }
+  return { enabled: true, locked: Boolean(lockedMatch), item }
 }
 
 function cellsFromDebugGrid(rows) {
@@ -54,10 +62,14 @@ function loadSavedCells() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
     if (!Array.isArray(saved) || saved.length !== CELL_COUNT) return null
-    return saved.map((cell) => ({
-      enabled: Boolean(cell?.enabled),
-      item: cell?.item ? savedItem(cell.item) : null,
-    }))
+    return saved.map((cell) => {
+      const item = cell?.item ? savedItem(cell.item) : null
+      return {
+        enabled: Boolean(cell?.enabled),
+        locked: Boolean(cell?.locked && item?.kind === 'number'),
+        item,
+      }
+    })
   } catch {
     // Unreadable or typeless board (saved before item types existed) - start fresh.
     return null
@@ -103,7 +115,7 @@ export function dropOutcome(cells, from, to) {
   if (from === to) return null
   const source = cells[from]
   const target = cells[to]
-  if (!source?.item || !target?.enabled) return null
+  if (!source?.item || source.locked || !target?.enabled) return null
   if (!target.item) return 'move'
   return canMerge(source.item, target.item) ? 'merge' : null
 }
@@ -120,7 +132,7 @@ const gridSlice = createSlice({
       const { from, to } = action.payload
       const source = state.cells[from]
       const target = state.cells[to]
-      if (!source?.item || !target?.enabled || target.item) return
+      if (!source?.item || source.locked || !target?.enabled || target.item) return
       target.item = source.item
       source.item = null
     },
@@ -128,8 +140,15 @@ const gridSlice = createSlice({
       const { from, to } = action.payload
       const source = state.cells[from]
       const target = state.cells[to]
-      if (!target?.enabled || !canMerge(source?.item, target.item)) return
+      if (
+        source?.locked ||
+        !target?.enabled ||
+        !canMerge(source?.item, target.item)
+      ) {
+        return
+      }
       target.item = { ...target.item, value: source.item.value + target.item.value }
+      target.locked = false
       source.item = null
     },
     // Drops a value-1 number of the generator's own type into `to`, which the

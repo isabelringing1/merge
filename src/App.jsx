@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { dropOutcome, mergeItems, moveItem, nearestOpenCell, spawnItem } from './store.js'
 import Cell from './Cell.jsx'
+import DebugMenu from './DebugMenu.jsx'
 import './App.css'
 
 const TITLE = 'NUMBER SEQUEL'
@@ -80,7 +81,7 @@ function App() {
 
   const handlePointerDown = useCallback(
     (index) => (event) => {
-      if (!cells[index].item || event.button !== 0) return
+      if (!cells[index].item || cells[index].locked || event.button !== 0) return
       event.preventDefault()
       setDrag({ index, startX: event.clientX, startY: event.clientY, x: 0, y: 0 })
     },
@@ -165,6 +166,7 @@ function App() {
             key={index}
             index={index}
             enabled={cell.enabled}
+            locked={cell.locked}
             item={cell.item}
             dragging={drag?.index === index}
             snapping={snapping === index}
@@ -176,6 +178,7 @@ function App() {
           />
         ))}
       </div>
+      <DebugMenu />
     </>
   )
 }

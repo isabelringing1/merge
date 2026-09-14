@@ -7,7 +7,6 @@ export const ITEM_TYPES = {
   t: {
     id: 't',
     fontOverride: "'Helvetica', sans-serif",
-    fontWeight: '200',
     outlineColor: '#bdffbf',
   },
   c: {

@@ -72,7 +72,11 @@ function Item({ item, dragging, snapping, pulse, spawn, offset, spawnMs, onPoint
 
   return (
     <div ref={setElement} className={className} style={style} onPointerDown={onPointerDown}>
-      {item.kind === 'generator' ? <Generator /> : <Number value={item.value} />}
+      {item.kind === 'generator' ? (
+        <Generator />
+      ) : (
+        <Number type={item.type} value={item.value} />
+      )}
     </div>
   )
 }

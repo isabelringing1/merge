@@ -87,6 +87,38 @@
   touch-action: none;
 }
 
+.h.dig3 {
+  font-size: calc(var(--cell) * 0.4);
+}
+
+.h.dig4 {
+  font-size: calc(var(--cell) * 0.32);
+}
+
+.t.dig3 {
+  font-size: calc(var(--cell) * 0.45);
+}
+
+.t.dig4 {
+  font-size: calc(var(--cell) * 0.4);
+}
+
+.c.dig3 {
+  font-size: calc(var(--cell) * 0.4);
+}
+
+.c.dig4 {
+  font-size: calc(var(--cell) * 0.36);
+}
+
+.dig5{
+  font-size: calc(var(--cell) * 0.3);
+}
+
+.dig6{
+  font-size: calc(var(--cell) * 0.28);
+}
+
 .item > .number,
 .item > .generator {
   -webkit-text-stroke: .3dvh var(--item-outline-color);

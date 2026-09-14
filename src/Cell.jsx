@@ -3,7 +3,7 @@ import DitherShader from './DitherShader.jsx'
 
 function Cell({
   index,
-  enabled,
+  hidden,
   locked,
   item,
   dragging,
@@ -16,10 +16,10 @@ function Cell({
 }) {
   return (
     <div
-      className={`cell ${enabled ? 'enabled' : 'disabled'}${locked ? ' locked' : ''}`}
+      className={`cell ${hidden ? 'hidden' : 'revealed'}${locked ? ' locked' : ''}`}
       data-index={index}
     >
-      {enabled && item && (
+      {!hidden && item && (
         <Item
           item={item}
           dragging={dragging}
@@ -31,7 +31,7 @@ function Cell({
           onPointerDown={onItemPointerDown}
         />
       )}
-      {locked && (
+      {!hidden && locked && (
         <div className="locked-cover">
           <DitherShader
             src={`${import.meta.env.BASE_URL}cover.png`}

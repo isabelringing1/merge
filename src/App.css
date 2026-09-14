@@ -47,11 +47,11 @@
   touch-action: none;
 }
 
-.cell.enabled {
+.cell.revealed {
   background: #fff;
 }
 
-.cell.disabled {
+.cell.hidden {
   background: #d9d9d9;
 }
 

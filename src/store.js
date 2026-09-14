@@ -6,9 +6,9 @@ export const COLS = 6
 export const ROWS = 9
 
 const CELL_COUNT = COLS * ROWS
-const STORAGE_KEY = 'merge.board.v1'
+const STORAGE_KEY = 'merge.board.v2'
 
-const emptyCell = () => ({ enabled: true, locked: false, item: null })
+const emptyCell = () => ({ hidden: false, locked: false, item: null })
 
 // '<type>G' -> generator, '<type><int>' -> number. The type prefix is required.
 function itemFromDebugValue(value) {
@@ -27,16 +27,20 @@ function itemFromDebugValue(value) {
 
 function cellFromDebugValue(value) {
   if (value === null || value === undefined) {
-    return { enabled: false, locked: false, item: null }
+    return { hidden: true, locked: false, item: null }
   }
   if (value === 0) return emptyCell()
 
-  const lockedMatch = typeof value === 'string' && /^\{(.+)\}$/.exec(value)
-  const item = itemFromDebugValue(lockedMatch ? lockedMatch[1] : value)
-  if (lockedMatch && item.kind !== 'number') {
-    throw new Error(`Locked cell ${JSON.stringify(value)} must contain a Number`)
+  const hiddenMatch = typeof value === 'string' && /^\{\{(.+)\}\}$/.exec(value)
+  const lockedMatch =
+    !hiddenMatch && typeof value === 'string' && /^\{([^{}]+)\}$/.exec(value)
+  const item = itemFromDebugValue(hiddenMatch?.[1] ?? lockedMatch?.[1] ?? value)
+  if ((hiddenMatch || lockedMatch) && item.kind !== 'number') {
+    throw new Error(
+      `${hiddenMatch ? 'Hidden' : 'Locked'} cell ${JSON.stringify(value)} must contain a Number`,
+    )
   }
-  return { enabled: true, locked: Boolean(lockedMatch), item }
+  return { hidden: Boolean(hiddenMatch), locked: Boolean(lockedMatch), item }
 }
 
 function cellsFromDebugGrid(rows) {
@@ -64,9 +68,10 @@ function loadSavedCells() {
     if (!Array.isArray(saved) || saved.length !== CELL_COUNT) return null
     return saved.map((cell) => {
       const item = cell?.item ? savedItem(cell.item) : null
+      const hidden = Boolean(cell?.hidden)
       return {
-        enabled: Boolean(cell?.enabled),
-        locked: Boolean(cell?.locked && item?.kind === 'number'),
+        hidden,
+        locked: Boolean(!hidden && cell?.locked && item?.kind === 'number'),
         item,
       }
     })
@@ -92,7 +97,7 @@ export function canMerge(source, target) {
   )
 }
 
-// Nearest enabled, empty cell to `index`, or null if the board has none. Ranked
+// Nearest revealed, empty cell to `index`, or null if the board has none. Ranked
 // by straight-line distance, so the eight surrounding cells come first; ties
 // break top-to-bottom, left-to-right.
 export function nearestOpenCell(cells, index) {
@@ -101,7 +106,7 @@ export function nearestOpenCell(cells, index) {
   let best = null
 
   for (let i = 0; i < cells.length; i++) {
-    if (i === index || !cells[i].enabled || cells[i].item) continue
+    if (i === index || cells[i].hidden || cells[i].item) continue
     const distance = (Math.floor(i / COLS) - fromRow) ** 2 + ((i % COLS) - fromCol) ** 2
     if (best === null || distance < best.distance) best = { index: i, distance }
   }
@@ -115,7 +120,7 @@ export function dropOutcome(cells, from, to) {
   if (from === to) return null
   const source = cells[from]
   const target = cells[to]
-  if (!source?.item || source.locked || !target?.enabled) return null
+  if (!source?.item || source.hidden || source.locked || !target || target.hidden) return null
   if (!target.item) return 'move'
   return canMerge(source.item, target.item) ? 'merge' : null
 }
@@ -132,7 +137,9 @@ const gridSlice = createSlice({
       const { from, to } = action.payload
       const source = state.cells[from]
       const target = state.cells[to]
-      if (!source?.item || source.locked || !target?.enabled || target.item) return
+      if (!source?.item || source.hidden || source.locked || !target || target.hidden || target.item) {
+        return
+      }
       target.item = source.item
       source.item = null
     },
@@ -141,23 +148,52 @@ const gridSlice = createSlice({
       const source = state.cells[from]
       const target = state.cells[to]
       if (
+        source?.hidden ||
         source?.locked ||
-        !target?.enabled ||
+        !target ||
+        target.hidden ||
         !canMerge(source?.item, target.item)
       ) {
         return
       }
+      const mergedIntoLockedTile = target.locked
       target.item = { ...target.item, value: source.item.value + target.item.value }
       target.locked = false
       source.item = null
+
+      if (mergedIntoLockedTile) {
+        const row = Math.floor(to / COLS)
+        const col = to % COLS
+        const neighbors = [
+          row > 0 ? to - COLS : null,
+          row < ROWS - 1 ? to + COLS : null,
+          col > 0 ? to - 1 : null,
+          col < COLS - 1 ? to + 1 : null,
+        ]
+        for (const index of neighbors) {
+          if (index === null || !state.cells[index].hidden) continue
+          state.cells[index].hidden = false
+          state.cells[index].locked = Boolean(state.cells[index].item)
+        }
+      }
     },
     // Drops a value-1 number of the generator's own type into `to`, which the
     // caller picks with nearestOpenCell so it can animate along the same path.
     spawnItem: (state, action) => {
       const { from, to } = action.payload
-      const generator = state.cells[from]?.item
+      const source = state.cells[from]
+      const generator = source?.item
       const target = state.cells[to]
-      if (generator?.kind !== 'generator' || !target?.enabled || target.item) return
+      if (
+        source?.hidden ||
+        source?.locked ||
+        generator?.kind !== 'generator' ||
+        !target ||
+        target.hidden ||
+        target.item
+      ) {
+        return
+      }
       target.item = { kind: 'number', type: generator.type, value: 1 }
     },
     resetBoard: (state) => {

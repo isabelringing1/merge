@@ -81,7 +81,14 @@ function App() {
 
   const handlePointerDown = useCallback(
     (index) => (event) => {
-      if (!cells[index].item || cells[index].locked || event.button !== 0) return
+      if (
+        cells[index].hidden ||
+        !cells[index].item ||
+        cells[index].locked ||
+        event.button !== 0
+      ) {
+        return
+      }
       event.preventDefault()
       setDrag({ index, startX: event.clientX, startY: event.clientY, x: 0, y: 0 })
     },
@@ -165,7 +172,7 @@ function App() {
           <Cell
             key={index}
             index={index}
-            enabled={cell.enabled}
+            hidden={cell.hidden}
             locked={cell.locked}
             item={cell.item}
             dragging={drag?.index === index}

@@ -1,9 +1,9 @@
 import Item from './Item.jsx'
-import DitherShader from './DitherShader.jsx'
 
 function Cell({
   index,
   hidden,
+  checkerDark,
   locked,
   item,
   dragging,
@@ -16,7 +16,7 @@ function Cell({
 }) {
   return (
     <div
-      className={`cell ${hidden ? 'hidden' : 'revealed'}${locked ? ' locked' : ''}`}
+      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}`}
       data-index={index}
     >
       {!hidden && item && (
@@ -33,11 +33,7 @@ function Cell({
       )}
       {!hidden && locked && (
         <div className="locked-cover">
-          <DitherShader
-            src={`${import.meta.env.BASE_URL}cover.png`}
-            gridSize={2}
-            ditherMode="bayer"
-          />
+          <img src={`${import.meta.env.BASE_URL}cover.png`} alt="locked" />
         </div>
       )}
     </div>

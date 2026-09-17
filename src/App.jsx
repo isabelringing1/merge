@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from 'react-redux'
 import { dropOutcome, mergeItems, moveItem, nearestOpenCell, spawnItem } from './store.js'
 import Cell from './Cell.jsx'
 import DebugMenu from './DebugMenu.jsx'
+import AsciiSphere from './AsciiSphere.jsx'
 import './App.css'
 
 const TITLE = 'NUMBER SEQUEL'
@@ -23,7 +24,7 @@ function cellCenter(index) {
   return rect && { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
 }
 
-function App() {
+function GameBoard({ active, onBack }) {
   const { cols, rows, cells } = useSelector((state) => state.grid)
   const dispatch = useDispatch()
 
@@ -153,13 +154,23 @@ function App() {
   )
 
   return (
-    <>
+    <section
+      className={`screen game-board-screen${active ? '' : ' offscreen'}`}
+      aria-hidden={!active}
+      inert={!active}
+    >
       <div className="goal-container">
         <div className="marquee-track">
           <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>
           <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>
         </div>
       </div>
+
+      <button className="back-button" type="button" onClick={onBack} aria-label="Back to world">
+        <svg viewBox="0 0 32 40" aria-hidden="true">
+          <path d="M27 2 3 20l24 18Z" />
+        </svg>
+      </button>
 
       <div
         className="board"
@@ -173,6 +184,7 @@ function App() {
             key={index}
             index={index}
             hidden={cell.hidden}
+            checkerDark={(Math.floor(index / cols) + (index % cols)) % 2 === 1}
             locked={cell.locked}
             item={cell.item}
             dragging={drag?.index === index}
@@ -186,7 +198,26 @@ function App() {
         ))}
       </div>
       <DebugMenu />
-    </>
+    </section>
+  )
+}
+
+function World({ onOpenBoard }) {
+  return (
+    <main className="screen world-screen">
+      <AsciiSphere onClick={onOpenBoard} />
+    </main>
+  )
+}
+
+function App() {
+  const [screen, setScreen] = useState('gameBoard')
+
+  return (
+    <div className="app">
+      <World onOpenBoard={() => setScreen('gameBoard')} />
+      <GameBoard active={screen === 'gameBoard'} onBack={() => setScreen('world')} />
+    </div>
   )
 }
 

@@ -1,3 +1,83 @@
+.app,
+.screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.app {
+  overflow: hidden;
+}
+
+.screen {
+  background: #fff;
+}
+
+.world-screen {
+  display: grid;
+  place-items: center;
+}
+
+.game-board-screen {
+  z-index: 1;
+  transform: translate3d(0, 0, 0);
+  transition: transform 520ms cubic-bezier(0.65, 0, 0.35, 1);
+  will-change: transform;
+}
+
+.game-board-screen.offscreen {
+  transform: translate3d(100%, 0, 0);
+  pointer-events: none;
+}
+
+.back-button {
+  position: absolute;
+  top: 5dvh;
+  left: max(1.25rem, env(safe-area-inset-left));
+  z-index: 3;
+  width: 2rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+}
+
+.back-button svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.back-button path {
+  fill: #fff;
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.ascii-sphere {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ascii-sphere pre {
+  margin: 0;
+  font-family: monospace;
+  font-size: min(3.4vw, 13px);
+  font-weight: 400;
+  line-height: 0.62;
+  white-space: pre;
+}
+
 /* Marquee title, matching NUMBER GACHA */
 .goal-container {
   position: absolute;
@@ -29,7 +109,22 @@
   }
 }
 
-/* Board */
+.dither-bg {
+  background: url("/pixel.png") center center repeat;
+  background-size: 6px;
+}
+
+.dither-bg-half::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/pixel.png") center center repeat;
+  background-size: 6px;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: -1;
+}
+
 .board {
   --cell: min(14vw, 7dvh);
   position: absolute;
@@ -37,22 +132,31 @@
   left: 50%;
   transform: translate(-50%, -50%);
   display: grid;
-  gap: 1px;
-  border: 1px solid #000;
-  background: #e6e6e6;
+  border: 2.5px inset #ffffff;
 }
 
 .cell {
   position: relative;
   touch-action: none;
+  
 }
 
 .cell.revealed {
-  background: #fff;
+  border: 1px solid rgba(67, 67, 67, 0.08);
+  
+}
+
+.cell.revealed.checker-dark {
+  background-color: #f2f2f2;
 }
 
 .cell.hidden {
-  background: #d9d9d9;
+  background: url("/pixel.png") center center repeat;
+  background-size: 6px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
 }
 
 .cell.locked .item {
@@ -63,12 +167,16 @@
 .locked-cover {
   position: absolute;
   z-index: 1;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  aspect-ratio: 200 / 123;
+  inset: 0;
   pointer-events: none;
   user-select: none;
+}
+
+.locked-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
 }
 
 /* Items */
@@ -121,7 +229,7 @@
 
 .item > .number,
 .item > .generator {
-  -webkit-text-stroke: .3dvh var(--item-outline-color);
+  -webkit-text-stroke: .38dvh var(--item-outline-color);
   paint-order: stroke fill;
 }
 
@@ -164,5 +272,9 @@
     bottom: 10dvh;
     transform: translateX(-50%);
 
+  }
+
+  .back-button {
+    top: 5dvh;
   }
 }

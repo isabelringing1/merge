@@ -12,7 +12,7 @@ export const ITEM_TYPES = {
   c: {
     id: 'c',
     fontOverride: "'Snell Roundhand', cursive",
-    outlineColor: '#ffbdcc',
+    outlineColor: '#F3E0BE',
   },
   h: {
     id: 'h',

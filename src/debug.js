@@ -1,7 +1,7 @@
 // Debug board override. When DEBUG_GRID is set it replaces the saved/default
 // board. Set it to null for normal loading.
 //
-// 9 rows of 6 columns:
+// 8 rows of 6 columns:
 //   null              hidden + empty
 //   '{{<type><int>}}' hidden + Number, e.g. '{{t4}}', '{{c12}}'
 //   0                 revealed + empty
@@ -19,7 +19,6 @@ export const DEFAULT_BOARD_STATE = [
   ['{c32}', 't1', 't1', 't1', '{t16}', '{h8}'],
   [0, 'c32', 't2', 'hG', 0, 0],
   [0, 'cG', 'h64', 0, 0, 0],
-  [0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0],
   [0, 0, 0, 0, 0, 0],
 ]

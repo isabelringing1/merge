@@ -33,32 +33,26 @@
 
 .back-button {
   position: absolute;
-  top: 5dvh;
-  left: max(1.25rem, env(safe-area-inset-left));
+  right: max(2dvh, env(safe-area-inset-right));
+  bottom: max(2dvh, env(safe-area-inset-bottom));
   z-index: 3;
-  width: 2rem;
-  height: 2.5rem;
+  width: 3.2rem;
+  height: 4rem;
   padding: 0;
   border: 0;
   background: transparent;
   color: #000;
   cursor: pointer;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
-.back-button svg {
+.back-button img {
   display: block;
   width: 100%;
   height: 100%;
-  overflow: visible;
-}
-
-.back-button path {
-  fill: #fff;
-  stroke: currentColor;
-  stroke-width: 1;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
+  object-fit: contain;
 }
 
 .ascii-sphere {
@@ -71,6 +65,9 @@
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
 }
 
 .ascii-sphere:active {
@@ -134,13 +131,51 @@
 }
 
 .board {
-  --cell: min(14vw, 7dvh);
+  --cell: 15vw;
+  --half-cell: 7.5vw;
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% + var(--half-cell)));
   display: grid;
   border: 2.5px inset #ffffff;
+}
+
+.energy-status {
+  position: absolute;
+  bottom: calc(100% + 0.75rem);
+  left: 0;
+  z-index: 4;
+  pointer-events: none;
+  color: #000;
+  font-family: Helvetica, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.energy-timer {
+  position: absolute;
+  bottom: calc(100% + 0.25rem);
+  left: 0.15rem;
+  color: #999;
+  font-size: clamp(0.8rem, 2dvh, 1.35rem);
+  font-weight: 700;
+}
+
+.energy-count {
+  display: flex;
+  align-items: center;
+  font-size: 3dvh;
+  font-weight: 800;
+  transform-origin: center;
+}
+
+.energy-count img {
+  display: block;
+  width: 2dvh;
+  height: 2.8dvh;
+  object-fit: contain;
 }
 
 .cell {
@@ -260,7 +295,7 @@
 
 .debug-menu {
   position: fixed;
-  right: 1rem;
+  left: 1rem;
   bottom: 1rem;
   z-index: 10;
 }
@@ -280,9 +315,5 @@
     bottom: 10dvh;
     transform: translateX(-50%);
 
-  }
-
-  .back-button {
-    top: 5dvh;
   }
 }

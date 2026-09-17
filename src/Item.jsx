@@ -28,9 +28,20 @@ function spawnKeyframes(dx, dy, lift) {
   ]
 }
 
-function Item({ item, dragging, snapping, pulse, spawn, offset, spawnMs, onPointerDown }) {
+function Item({
+  item,
+  dragging,
+  snapping,
+  pulse,
+  spawn,
+  offset,
+  spawnMs,
+  onPointerDown,
+  generatorHapticsEnabled,
+}) {
   const { fontOverride, fontWeight, outlineColor } = getItemType(item.type)
   const element = useRef(null)
+  const hapticSwitch = useRef(null)
   // Each pulse carries a new id so repeated pulses on the same cell replay the
   // animation. Seeded with the mount value so mounting never pulses.
   const lastPulse = useRef(pulse)
@@ -38,10 +49,15 @@ function Item({ item, dragging, snapping, pulse, spawn, offset, spawnMs, onPoint
   const setElement = useCallback(
     (node) => {
       element.current = node
-      if (item.kind === 'generator') attachHaptic(node)
+      if (item.kind === 'generator') hapticSwitch.current = attachHaptic(node)
     },
     [item.kind],
   )
+
+  useLayoutEffect(() => {
+    if (!hapticSwitch.current) return
+    hapticSwitch.current.style.pointerEvents = generatorHapticsEnabled ? '' : 'none'
+  }, [generatorHapticsEnabled])
 
   useEffect(() => {
     if (pulse === null || pulse === lastPulse.current) return

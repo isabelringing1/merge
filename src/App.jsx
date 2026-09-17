@@ -4,6 +4,7 @@ import { dropOutcome, mergeItems, moveItem, nearestOpenCell, spawnItem } from '.
 import Cell from './Cell.jsx'
 import DebugMenu from './DebugMenu.jsx'
 import AsciiSphere from './AsciiSphere.jsx'
+import { MAX_ENERGY, useEnergy } from './energy.js'
 import './App.css'
 
 const TITLE = 'NUMBER SEQUEL'
@@ -13,6 +14,11 @@ const SPAWN_MS = 280
 const SPAWN_SETTLE_MS = 60
 // Pointer movement (px) allowed before a press counts as a drag instead of a tap.
 const TAP_SLOP = 8
+const ENERGY_PULSE_KEYFRAMES = [
+  { transform: 'scale(1)' },
+  { transform: 'scale(1.18)', offset: 0.45 },
+  { transform: 'scale(1)' },
+]
 
 function cellIndexAt(x, y) {
   const el = document.elementFromPoint(x, y)?.closest('[data-index]')
@@ -24,9 +30,34 @@ function cellCenter(index) {
   return rect && { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
 }
 
+function formatTimer(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function EnergyCounter({ energy }) {
+  const element = useRef(null)
+  const previousEnergy = useRef(energy)
+
+  useEffect(() => {
+    if (energy === previousEnergy.current) return
+    previousEnergy.current = energy
+    element.current?.animate(ENERGY_PULSE_KEYFRAMES, { duration: 220, easing: 'ease-out' })
+  }, [energy])
+
+  return (
+    <span ref={element} className="energy-count">
+      <img src={`${import.meta.env.BASE_URL}energy.png`} alt="" />
+      <span>{energy}</span>
+    </span>
+  )
+}
+
 function GameBoard({ active, onBack }) {
   const { cols, rows, cells } = useSelector((state) => state.grid)
   const dispatch = useDispatch()
+  const { energy, secondsToNext, spendEnergy } = useEnergy()
 
   // Index of the item being dragged plus its offset from where the drag started.
   const [drag, setDrag] = useState(null)
@@ -51,6 +82,7 @@ function GameBoard({ active, onBack }) {
   // generator. Generators with nowhere to spawn still pulse.
   const spawnFrom = useCallback(
     (from, cells) => {
+      if (!spendEnergy()) return
       pulseItem(from)
 
       const to = nearestOpenCell(cells, from)
@@ -77,7 +109,7 @@ function GameBoard({ active, onBack }) {
       }, SPAWN_MS + SPAWN_SETTLE_MS)
       spawnTimeouts.current.add(timeout)
     },
-    [dispatch, pulseItem],
+    [dispatch, pulseItem, spendEnergy],
   )
 
   const handlePointerDown = useCallback(
@@ -160,9 +192,7 @@ function GameBoard({ active, onBack }) {
       inert={!active}
     >
       <button className="back-button" type="button" onClick={onBack} aria-label="Back to world">
-        <svg viewBox="0 0 32 40" aria-hidden="true">
-          <path d="M24.8 3.4Q28 1.2 28 5.2v29.6q0 4-3.2 1.8L5.2 22.8Q1.2 20 5.2 17.2Z" />
-        </svg>
+        <img src={`${import.meta.env.BASE_URL}sphere.png`} alt="" />
       </button>
 
       <div
@@ -187,8 +217,15 @@ function GameBoard({ active, onBack }) {
             spawnMs={SPAWN_MS}
             offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
             onItemPointerDown={handlePointerDown(index)}
+            generatorHapticsEnabled={energy > 0}
           />
         ))}
+        <div className="energy-status" aria-label={`${energy} of ${MAX_ENERGY} energy`}>
+          {secondsToNext !== null && (
+            <span className="energy-timer">{formatTimer(secondsToNext)}</span>
+          )}
+          <EnergyCounter energy={energy} />
+        </div>
       </div>
       <DebugMenu />
     </section>

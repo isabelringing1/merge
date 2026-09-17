@@ -3,9 +3,10 @@ import { DEBUG_GRID, DEFAULT_BOARD_STATE } from './debug.js'
 import { getItemType } from './itemTypes.js'
 
 export const COLS = 6
-export const ROWS = 9
+export const ROWS = 8
 
 const CELL_COUNT = COLS * ROWS
+const PREVIOUS_CELL_COUNT = COLS * 9
 const STORAGE_KEY = 'merge.board.v2'
 
 const emptyCell = () => ({ hidden: false, locked: false, item: null })
@@ -65,8 +66,14 @@ function savedItem(item) {
 function loadSavedCells() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (!Array.isArray(saved) || saved.length !== CELL_COUNT) return null
-    return saved.map((cell) => {
+    if (
+      !Array.isArray(saved) ||
+      (saved.length !== CELL_COUNT && saved.length !== PREVIOUS_CELL_COUNT)
+    ) {
+      return null
+    }
+    // The 6x9 board had one extra empty row at the bottom.
+    return saved.slice(0, CELL_COUNT).map((cell) => {
       const item = cell?.item ? savedItem(cell.item) : null
       const hidden = Boolean(cell?.hidden)
       return {

@@ -13,6 +13,7 @@ function Cell({
   spawnMs,
   offset,
   onItemPointerDown,
+  generatorHapticsEnabled,
 }) {
   return (
     <div
@@ -29,6 +30,7 @@ function Cell({
           spawnMs={spawnMs}
           offset={offset}
           onPointerDown={onItemPointerDown}
+          generatorHapticsEnabled={generatorHapticsEnabled}
         />
       )}
       {!hidden && locked && (

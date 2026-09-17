@@ -27,7 +27,7 @@
 }
 
 .game-board-screen.offscreen {
-  transform: translate3d(100%, 0, 0);
+  transform: translate3d(0, 100%, 0);
   pointer-events: none;
 }
 
@@ -67,8 +67,14 @@
   border: 0;
   background: transparent;
   color: #000;
-  cursor: pointer;
-  touch-action: manipulation;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ascii-sphere:active {
+  cursor: grabbing;
 }
 
 .ascii-sphere pre {
@@ -82,7 +88,7 @@
 
 /* Marquee title, matching NUMBER GACHA */
 .goal-container {
-  position: absolute;
+  position: fixed;
   font-size: 1.5dvh;
   font-weight: bold;
   top: 1dvh;
@@ -90,7 +96,7 @@
   overflow: hidden;
   white-space: nowrap;
   cursor: pointer;
-  z-index: 2;
+  z-index: 20;
 }
 
 .marquee-track {

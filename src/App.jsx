@@ -159,13 +159,6 @@ function GameBoard({ active, onBack }) {
       aria-hidden={!active}
       inert={!active}
     >
-      <div className="goal-container">
-        <div className="marquee-track">
-          <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>
-          <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>
-        </div>
-      </div>
-
       <button className="back-button" type="button" onClick={onBack} aria-label="Back to world">
         <svg viewBox="0 0 32 40" aria-hidden="true">
           <path d="M24.8 3.4Q28 1.2 28 5.2v29.6q0 4-3.2 1.8L5.2 22.8Q1.2 20 5.2 17.2Z" />
@@ -217,6 +210,12 @@ function App() {
     <div className="app">
       <World onOpenBoard={() => setScreen('gameBoard')} />
       <GameBoard active={screen === 'gameBoard'} onBack={() => setScreen('world')} />
+      <div className="goal-container">
+        <div className="marquee-track">
+          <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>
+          <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>
+        </div>
+      </div>
     </div>
   )
 }

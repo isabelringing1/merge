@@ -168,7 +168,7 @@ function GameBoard({ active, onBack }) {
 
       <button className="back-button" type="button" onClick={onBack} aria-label="Back to world">
         <svg viewBox="0 0 32 40" aria-hidden="true">
-          <path d="M27 2 3 20l24 18Z" />
+          <path d="M24.8 3.4Q28 1.2 28 5.2v29.6q0 4-3.2 1.8L5.2 22.8Q1.2 20 5.2 17.2Z" />
         </svg>
       </button>
 

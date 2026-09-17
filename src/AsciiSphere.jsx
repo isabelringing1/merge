@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const RADIUS = 14
-const FRAME_COUNT = 32
-const FRAME_MS = 80
+const ROTATION_MS = 8000
 
 function makeFrame(phase) {
   const rows = []
@@ -22,7 +21,9 @@ function makeFrame(phase) {
 
       const nz = Math.sqrt(1 - distance)
       const longitude = Math.atan2(nx, nz) + phase
-      const texture = Math.sin(longitude * 2.4)
+      // A whole-number frequency makes the end and start of each rotation
+      // identical, avoiding a visible jump when the animation loops.
+      const texture = Math.sin(longitude * 2)
 
       if (texture > 0.3) row += ';'
       else if (texture > -0.3) row += ':'
@@ -36,26 +37,26 @@ function makeFrame(phase) {
 }
 
 function AsciiSphere({ onClick }) {
-  const frames = useMemo(
-    () =>
-      Array.from({ length: FRAME_COUNT }, (_, index) =>
-        makeFrame((index / FRAME_COUNT) * Math.PI * 2),
-      ),
-    [],
-  )
-  const [frame, setFrame] = useState(0)
+  const [frame, setFrame] = useState(() => makeFrame(0))
 
   useEffect(() => {
-    const interval = window.setInterval(
-      () => setFrame((current) => (current + 1) % frames.length),
-      FRAME_MS,
-    )
-    return () => window.clearInterval(interval)
-  }, [frames.length])
+    let animationFrame
+    let startTime
+
+    const animate = (time) => {
+      startTime ??= time
+      const phase = (((time - startTime) % ROTATION_MS) / ROTATION_MS) * Math.PI * 2
+      setFrame(makeFrame(phase))
+      animationFrame = window.requestAnimationFrame(animate)
+    }
+
+    animationFrame = window.requestAnimationFrame(animate)
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [])
 
   return (
     <button className="ascii-sphere" type="button" onClick={onClick} aria-label="Open game board">
-      <pre aria-hidden="true">{frames[frame]}</pre>
+      <pre aria-hidden="true">{frame}</pre>
     </button>
   )
 }

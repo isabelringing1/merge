@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { dropOutcome, mergeItems, moveItem, nearestOpenCell, spawnItem } from './store.js'
 import Cell from './Cell.jsx'
+import BoardDitherCanvas from './BoardDitherCanvas.jsx'
 import DebugMenu from './DebugMenu.jsx'
 import AsciiSphere from './AsciiSphere.jsx'
 import { MAX_ENERGY, useEnergy } from './energy.js'
@@ -202,6 +203,7 @@ function GameBoard({ active, onBack }) {
           gridTemplateRows: `repeat(${rows}, var(--cell))`,
         }}
       >
+        <BoardDitherCanvas columns={cols} rows={rows} />
         {cells.map((cell, index) => (
           <Cell
             key={index}

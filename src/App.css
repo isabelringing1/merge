@@ -141,6 +141,16 @@
   border: 2.5px inset #ffffff;
 }
 
+.board-dither {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
 .energy-status {
   position: absolute;
   bottom: calc(100% + 0.75rem);
@@ -180,12 +190,14 @@
 
 .cell {
   position: relative;
+  z-index: 1;
   touch-action: none;
   
 }
 
 .cell.revealed {
   border: 1px solid rgba(67, 67, 67, 0.08);
+  background-color: #fff;
   
 }
 
@@ -194,12 +206,9 @@
 }
 
 .cell.hidden {
-  background: url("/pixel.png") center center repeat;
-  background-size: 6px;
   display: block;
   width: 100%;
   height: 100%;
-  image-rendering: pixelated;
 }
 
 .cell.locked .item {
@@ -291,6 +300,13 @@
 .item.snapping {
   z-index: 3;
   transition: transform 0.15s ease-out;
+}
+
+@media (min-width: 601px) {
+  .board {
+    --cell: 10dvh;
+    --half-cell: 5dvh;
+  }
 }
 
 .debug-menu {

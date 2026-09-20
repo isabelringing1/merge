@@ -17,7 +17,7 @@ function Cell({
 }) {
   return (
     <div
-      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}`}
+      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}${dragging ? ' dragging' : ''}${spawn ? ' spawning' : ''}`}
       data-index={index}
     >
       {!hidden && item && (

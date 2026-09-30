@@ -31,6 +31,34 @@ function cellCenter(index) {
   return rect && { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
 }
 
+function hiddenNeighborsAt(cells, index, columns, rows) {
+  const cellRow = Math.floor(index / columns)
+  const cellColumn = index % columns
+  let hiddenNeighborMask = 0
+  let hiddenNeighborCount = 0
+  let neighborCount = 0
+  let bit = 0
+
+  for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+    for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+      if (rowOffset === 0 && columnOffset === 0) continue
+
+      const row = cellRow + rowOffset
+      const column = cellColumn + columnOffset
+      if (row >= 0 && row < rows && column >= 0 && column < columns) {
+        neighborCount += 1
+        if (cells[row * columns + column].hidden) {
+          hiddenNeighborMask |= 1 << bit
+          hiddenNeighborCount += 1
+        }
+      }
+      bit += 1
+    }
+  }
+
+  return { hiddenNeighborMask, hiddenNeighborCount, neighborCount }
+}
+
 function formatTimer(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
@@ -49,7 +77,7 @@ function EnergyCounter({ energy }) {
 
   return (
     <span ref={element} className="energy-count">
-      <img src={`${import.meta.env.BASE_URL}energy.png`} alt="" />
+      <img src={`${import.meta.env.BASE_URL}shovel.png`} alt="" />
       <span>{energy}</span>
     </span>
   )
@@ -204,24 +232,28 @@ function GameBoard({ active, onBack }) {
         }}
       >
         <BoardDitherCanvas columns={cols} rows={rows} />
-        {cells.map((cell, index) => (
-          <Cell
-            key={index}
-            index={index}
-            hidden={cell.hidden}
-            checkerDark={(Math.floor(index / cols) + (index % cols)) % 2 === 1}
-            locked={cell.locked}
-            item={cell.item}
-            dragging={drag?.index === index}
-            snapping={snapping === index}
-            pulse={pulse?.index === index ? pulse.id : null}
-            spawn={spawns[index] ?? null}
-            spawnMs={SPAWN_MS}
-            offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
-            onItemPointerDown={handlePointerDown(index)}
-            generatorHapticsEnabled={energy > 0}
-          />
-        ))}
+        {cells.map((cell, index) => {
+          const hiddenNeighbors = hiddenNeighborsAt(cells, index, cols, rows)
+          return (
+            <Cell
+              key={index}
+              index={index}
+              hidden={cell.hidden}
+              checkerDark={(Math.floor(index / cols) + (index % cols)) % 2 === 1}
+              locked={cell.locked}
+              item={cell.item}
+              dragging={drag?.index === index}
+              snapping={snapping === index}
+              pulse={pulse?.index === index ? pulse.id : null}
+              spawn={spawns[index] ?? null}
+              spawnMs={SPAWN_MS}
+              offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
+              onItemPointerDown={handlePointerDown(index)}
+              generatorHapticsEnabled={energy > 0}
+              {...hiddenNeighbors}
+            />
+          )
+        })}
         <div className="energy-status" aria-label={`${energy} of ${MAX_ENERGY} energy`}>
           {secondsToNext !== null && (
             <span className="energy-timer">{formatTimer(secondsToNext)}</span>

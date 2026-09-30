@@ -185,6 +185,7 @@
   display: block;
   width: 2dvh;
   height: 2.8dvh;
+  padding-right: .3dvh;
   object-fit: contain;
 }
 
@@ -232,7 +233,7 @@
   user-select: none;
 }
 
-.locked-cover img {
+.locked-cover canvas {
   display: block;
   width: 100%;
   height: 100%;
@@ -291,6 +292,22 @@
 .item > .generator {
   -webkit-text-stroke: .38dvh var(--item-outline-color);
   paint-order: stroke fill;
+}
+
+.generator {
+  position: relative;
+  display: inline-block;
+}
+
+.generator-shovel {
+  position: absolute;
+  left: 82%;
+  bottom: -0.15em;
+  width: 0.5em;
+  height: 0.5em;
+  object-fit: contain;
+  pointer-events: none;
+  -webkit-text-stroke: 0;
 }
 
 .item.dragging {

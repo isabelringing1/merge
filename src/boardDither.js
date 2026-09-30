@@ -82,6 +82,7 @@ export function drawBoardDither(
     background = '#FFFFFF',
     boardColumns = 6,
     boardRows = 8,
+    densityOffset = 0,
   } = {},
 ) {
   context.clearRect(0, 0, width, height)
@@ -101,14 +102,20 @@ export function drawBoardDither(
       const right = Math.round(((column + 1) * width) / patternColumns)
       const x = (left + right) / 2
       const y = (top + bottom) / 2
-      const density = patchDensity(
-        x,
-        y,
-        width,
-        height,
-        boardColumns,
-        boardRows,
-        seed,
+      const density = Math.max(
+        0,
+        Math.min(
+          1,
+          patchDensity(
+            x,
+            y,
+            width,
+            height,
+            boardColumns,
+            boardRows,
+            seed,
+          ) + densityOffset,
+        ),
       )
       const threshold = (BAYER_8X8[row % 8][column % 8] + 0.5) / 64
 

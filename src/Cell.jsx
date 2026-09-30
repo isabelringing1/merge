@@ -1,4 +1,5 @@
 import Item from './Item.jsx'
+import LockedDitherCanvas from './LockedDitherCanvas.jsx'
 
 function Cell({
   index,
@@ -14,6 +15,9 @@ function Cell({
   offset,
   onItemPointerDown,
   generatorHapticsEnabled,
+  hiddenNeighborMask,
+  hiddenNeighborCount,
+  neighborCount,
 }) {
   return (
     <div
@@ -34,8 +38,13 @@ function Cell({
         />
       )}
       {!hidden && locked && (
-        <div className="locked-cover">
-          <img src={`${import.meta.env.BASE_URL}cover.png`} alt="locked" />
+        <div className="locked-cover" role="img" aria-label="locked">
+          <LockedDitherCanvas
+            tileIndex={index}
+            hiddenNeighborMask={hiddenNeighborMask}
+            hiddenNeighborCount={hiddenNeighborCount}
+            neighborCount={neighborCount}
+          />
         </div>
       )}
     </div>

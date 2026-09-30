@@ -8,7 +8,7 @@ import AsciiSphere from './AsciiSphere.jsx'
 import { MAX_ENERGY, useEnergy } from './energy.js'
 import './App.css'
 
-const TITLE = 'NUMBER SEQUEL'
+const TITLE = 'NUMBER MINE'
 const SNAP_MS = 150
 const SPAWN_MS = 280
 // Small buffer so an item becomes grabbable strictly after it has landed.

@@ -58,8 +58,13 @@ function cellDensity(x, y, width, height, columns, rows, seed) {
 
 function patchDensity(x, y, width, height, columns, rows, seed) {
   const squareField = cellDensity(x, y, width, height, columns, rows, seed)
-  const medium = valueNoise(x / 58, y / 58, seed + 19)
-  const detail = valueNoise(x / 26, y / 26, seed + 47)
+  const cellScale = (width / columns + height / rows) / 2
+  const medium = valueNoise(x / cellScale, y / cellScale, seed + 19)
+  const detail = valueNoise(
+    x / (cellScale * 0.45),
+    y / (cellScale * 0.45),
+    seed + 47,
+  )
   const organicField = medium * 0.68 + detail * 0.32
   const field = squareField * 0.76 + organicField * 0.24
 
@@ -72,10 +77,9 @@ export function drawBoardDither(
   height,
   {
     seed = 208, //good seeds - 208, 370661
-    pitch = 5,
-    markSize = 5,
-    foreground = '#444444',
-    background = '#EFEFEF',
+    samplesPerTile = 12,
+    foreground = '#383838',
+    background = '#FFFFFF',
     boardColumns = 6,
     boardRows = 8,
   } = {},
@@ -85,14 +89,18 @@ export function drawBoardDither(
   context.fillRect(0, 0, width, height)
   context.fillStyle = foreground
 
-  const inset = (pitch - markSize) / 2
-  const patternColumns = Math.ceil(width / pitch)
-  const patternRows = Math.ceil(height / pitch)
+  const patternColumns = boardColumns * samplesPerTile
+  const patternRows = boardRows * samplesPerTile
 
   for (let row = 0; row < patternRows; row += 1) {
+    const top = Math.round((row * height) / patternRows)
+    const bottom = Math.round(((row + 1) * height) / patternRows)
+
     for (let column = 0; column < patternColumns; column += 1) {
-      const x = column * pitch
-      const y = row * pitch
+      const left = Math.round((column * width) / patternColumns)
+      const right = Math.round(((column + 1) * width) / patternColumns)
+      const x = (left + right) / 2
+      const y = (top + bottom) / 2
       const density = patchDensity(
         x,
         y,
@@ -105,7 +113,7 @@ export function drawBoardDither(
       const threshold = (BAYER_8X8[row % 8][column % 8] + 0.5) / 64
 
       if (density > threshold) {
-        context.fillRect(x + inset, y + inset, markSize, markSize)
+        context.fillRect(left, top, right - left, bottom - top)
       }
     }
   }

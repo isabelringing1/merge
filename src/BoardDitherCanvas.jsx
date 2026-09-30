@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { drawBoardDither } from './boardDither.js'
 
 const SEED_STORAGE_KEY = 'merge.board-dither-seed.v1'
+const SAMPLES_PER_TILE = 12
 
 function loadOrCreateSeed() {
   try {
@@ -26,19 +27,21 @@ function BoardDitherCanvas({ columns, rows }) {
     if (!canvas || !board) return undefined
 
     const render = () => {
-      const { width, height } = board.getBoundingClientRect()
+      const { width, height } = canvas.getBoundingClientRect()
       if (width <= 0 || height <= 0) return
 
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.round(width * pixelRatio)
-      canvas.height = Math.round(height * pixelRatio)
+      // One backing-canvas pixel is one dither sample. Scaling this exact grid
+      // keeps every board tile at 12 x 12 samples at any rendered tile size.
+      canvas.width = columns * SAMPLES_PER_TILE
+      canvas.height = rows * SAMPLES_PER_TILE
 
       const context = canvas.getContext('2d')
       if (!context) return
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+      context.setTransform(1, 0, 0, 1, 0, 0)
       context.imageSmoothingEnabled = false
-      drawBoardDither(context, width, height, {
+      drawBoardDither(context, canvas.width, canvas.height, {
         seed,
+        samplesPerTile: SAMPLES_PER_TILE,
         boardColumns: columns,
         boardRows: rows,
       })

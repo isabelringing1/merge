@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { dropOutcome, mergeItems, moveItem, nearestOpenCell, spawnItem } from './store.js'
+import {
+  dropOutcome,
+  mergeItems,
+  moveItem,
+  nearestOpenCell,
+  spawnItem,
+  swapItems,
+} from './store.js'
 import Cell from './Cell.jsx'
 import BoardDitherCanvas from './BoardDitherCanvas.jsx'
 import DebugMenu from './DebugMenu.jsx'
@@ -11,6 +18,7 @@ import './App.css'
 const TITLE = 'NUMBER MINE'
 const SNAP_MS = 150
 const SPAWN_MS = 280
+const SWAP_MS = 220
 // Small buffer so an item becomes grabbable strictly after it has landed.
 const SPAWN_SETTLE_MS = 60
 // Pointer movement (px) allowed before a press counts as a drag instead of a tap.
@@ -98,8 +106,12 @@ function GameBoard({ active, onBack }) {
   // Items currently flying out of a generator, keyed by destination cell. They
   // are inert until they land, and several can be in the air at once.
   const [spawns, setSpawns] = useState({})
+  // Both items in a swap animate from their old visual positions into the
+  // cells they occupy after the state update.
+  const [swaps, setSwaps] = useState({})
   const snapTimeout = useRef(null)
   const spawnTimeouts = useRef(new Set())
+  const swapTimeouts = useRef(new Set())
   const pulseId = useRef(0)
 
   const pulseItem = useCallback((index) => {
@@ -184,6 +196,44 @@ function GameBoard({ active, onBack }) {
 
       if (outcome === 'move') {
         dispatch(moveItem({ from: drag.index, to }))
+      } else if (outcome === 'swap') {
+        const source = cellCenter(drag.index)
+        const destination = cellCenter(to)
+        if (source && destination) {
+          const draggedFlight = {
+            dx: source.x + drag.x - destination.x,
+            dy: source.y + drag.y - destination.y,
+            kind: 'drop',
+          }
+          const displacedFlight = {
+            dx: destination.x - source.x,
+            dy: destination.y - source.y,
+            kind: 'tween',
+          }
+          setSwaps((current) => ({
+            ...current,
+            [to]: draggedFlight,
+            [drag.index]: displacedFlight,
+          }))
+
+          const timeout = setTimeout(() => {
+            swapTimeouts.current.delete(timeout)
+            setSwaps((current) => {
+              if (
+                current[to] !== draggedFlight ||
+                current[drag.index] !== displacedFlight
+              ) {
+                return current
+              }
+              const next = { ...current }
+              delete next[to]
+              delete next[drag.index]
+              return next
+            })
+          }, SWAP_MS)
+          swapTimeouts.current.add(timeout)
+        }
+        dispatch(swapItems({ from: drag.index, to }))
       } else if (outcome === 'merge') {
         dispatch(mergeItems({ from: drag.index, to }))
         pulseItem(to)
@@ -210,6 +260,8 @@ function GameBoard({ active, onBack }) {
       clearTimeout(snapTimeout.current)
       spawnTimeouts.current.forEach(clearTimeout)
       spawnTimeouts.current.clear()
+      swapTimeouts.current.forEach(clearTimeout)
+      swapTimeouts.current.clear()
     },
     [],
   )
@@ -247,6 +299,8 @@ function GameBoard({ active, onBack }) {
               pulse={pulse?.index === index ? pulse.id : null}
               spawn={spawns[index] ?? null}
               spawnMs={SPAWN_MS}
+              swap={swaps[index] ?? null}
+              swapMs={SWAP_MS}
               offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
               onItemPointerDown={handlePointerDown(index)}
               generatorHapticsEnabled={energy > 0}

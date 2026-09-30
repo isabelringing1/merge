@@ -121,15 +121,16 @@ export function nearestOpenCell(cells, index) {
   return best?.index ?? null
 }
 
-// 'move' | 'merge' | null, where null means the drop is invalid and the dragged
-// item should snap back.
+// 'move' | 'merge' | 'swap' | null, where null means the drop is invalid and
+// the dragged item should snap back.
 export function dropOutcome(cells, from, to) {
   if (from === to) return null
   const source = cells[from]
   const target = cells[to]
   if (!source?.item || source.hidden || source.locked || !target || target.hidden) return null
   if (!target.item) return 'move'
-  return canMerge(source.item, target.item) ? 'merge' : null
+  if (canMerge(source.item, target.item)) return 'merge'
+  return target.locked ? null : 'swap'
 }
 
 const gridSlice = createSlice({
@@ -149,6 +150,24 @@ const gridSlice = createSlice({
       }
       target.item = source.item
       source.item = null
+    },
+    swapItems: (state, action) => {
+      const { from, to } = action.payload
+      const source = state.cells[from]
+      const target = state.cells[to]
+      if (
+        !source?.item ||
+        source.hidden ||
+        source.locked ||
+        !target?.item ||
+        target.hidden ||
+        target.locked
+      ) {
+        return
+      }
+      const sourceItem = source.item
+      source.item = target.item
+      target.item = sourceItem
     },
     mergeItems: (state, action) => {
       const { from, to } = action.payload
@@ -209,7 +228,8 @@ const gridSlice = createSlice({
   },
 })
 
-export const { moveItem, mergeItems, spawnItem, resetBoard } = gridSlice.actions
+export const { moveItem, swapItems, mergeItems, spawnItem, resetBoard } =
+  gridSlice.actions
 
 export const store = configureStore({
   reducer: { grid: gridSlice.reducer },

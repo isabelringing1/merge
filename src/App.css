@@ -204,6 +204,10 @@
   z-index: 3;
 }
 
+.cell.swapping {
+  z-index: 4;
+}
+
 .cell.revealed {
   border: 1px solid rgba(67, 67, 67, 0.08);
   background-color: #fff;
@@ -320,6 +324,12 @@
 .item.spawning {
   pointer-events: none;
   cursor: default;
+}
+
+.item.swapping {
+  pointer-events: none;
+  cursor: default;
+  z-index: 2;
 }
 
 .item.snapping {

@@ -12,6 +12,8 @@ function Cell({
   pulse,
   spawn,
   spawnMs,
+  swap,
+  swapMs,
   offset,
   onItemPointerDown,
   generatorHapticsEnabled,
@@ -21,7 +23,7 @@ function Cell({
 }) {
   return (
     <div
-      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}${dragging ? ' dragging' : ''}${spawn ? ' spawning' : ''}`}
+      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}${dragging ? ' dragging' : ''}${spawn ? ' spawning' : ''}${swap ? ' swapping' : ''}`}
       data-index={index}
     >
       {!hidden && item && (
@@ -32,6 +34,8 @@ function Cell({
           pulse={pulse}
           spawn={spawn}
           spawnMs={spawnMs}
+          swap={swap}
+          swapMs={swapMs}
           offset={offset}
           onPointerDown={onItemPointerDown}
           generatorHapticsEnabled={generatorHapticsEnabled}

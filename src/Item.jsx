@@ -28,14 +28,31 @@ function spawnKeyframes(dx, dy, lift) {
   ]
 }
 
+function swapKeyframes(dx, dy, kind) {
+  if (kind === 'drop') {
+    return [
+      { transform: `translate(${dx}px, ${dy}px) scale(1.08)` },
+      { transform: 'translate(0px, 0px) scale(0.96)', offset: 0.78 },
+      { transform: 'translate(0px, 0px) scale(1)' },
+    ]
+  }
+
+  return [
+    { transform: `translate(${dx}px, ${dy}px)` },
+    { transform: 'translate(0px, 0px)' },
+  ]
+}
+
 function Item({
   item,
   dragging,
   snapping,
   pulse,
   spawn,
+  swap,
   offset,
   spawnMs,
+  swapMs,
   onPointerDown,
   generatorHapticsEnabled,
 }) {
@@ -78,7 +95,23 @@ function Item({
     })
   }, [spawn, spawnMs])
 
-  const className = ['item', dragging && 'dragging', snapping && 'snapping', spawn && 'spawning']
+  useLayoutEffect(() => {
+    if (!swap) return
+    const el = element.current
+    if (!el) return
+    el.animate(swapKeyframes(swap.dx, swap.dy, swap.kind), {
+      duration: swapMs,
+      easing: swap.kind === 'drop' ? 'cubic-bezier(0.2, 0.8, 0.2, 1)' : 'ease-in-out',
+    })
+  }, [swap, swapMs])
+
+  const className = [
+    'item',
+    dragging && 'dragging',
+    snapping && 'snapping',
+    spawn && 'spawning',
+    swap && 'swapping',
+  ]
     .filter(Boolean)
     .join(' ')
 

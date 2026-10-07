@@ -79,7 +79,7 @@ export function drawBoardDither(
     seed = 208, //good seeds - 208, 370661
     samplesPerTile = 12,
     foreground = '#383838',
-    background = '#FFFFFF',
+    background = '#F7F7F7',
     boardColumns = 6,
     boardRows = 8,
     densityOffset = 0,

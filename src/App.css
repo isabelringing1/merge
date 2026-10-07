@@ -209,7 +209,6 @@
 }
 
 .cell.revealed {
-  border: 1px solid rgba(67, 67, 67, 0.08);
   background-color: #fff;
   
 }
@@ -235,6 +234,7 @@
   inset: 0;
   pointer-events: none;
   user-select: none;
+  filter: drop-shadow(0px -2px 2px rgba(0, 0, 0, 0.228));
 }
 
 .locked-cover canvas {
@@ -255,7 +255,7 @@
   font-weight: bold;
   font-size: calc(var(--cell) * 0.55);
   line-height: 1;
-  color: #000;
+  color: var(--item-text-color);
   cursor: grab;
   touch-action: none;
 }
@@ -294,7 +294,7 @@
 
 .item > .number,
 .item > .generator {
-  -webkit-text-stroke: .38dvh var(--item-outline-color);
+  -webkit-text-stroke: .38dvh #e3e4e8;
   paint-order: stroke fill;
 }
 
@@ -307,8 +307,8 @@
   position: absolute;
   left: 82%;
   bottom: -0.15em;
-  width: 0.5em;
-  height: 0.5em;
+  width: 0.45em;
+  height: 0.45em;
   object-fit: contain;
   pointer-events: none;
   -webkit-text-stroke: 0;

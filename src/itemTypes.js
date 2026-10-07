@@ -2,22 +2,22 @@
 //
 //   fontOverride  font-family applied to the item's value
 //   fontWeight    optional font-weight applied to the item's value
-//   outlineColor  color outlining the item's characters
+//   textColor     color filling the item's characters
 export const ITEM_TYPES = {
   t: {
     id: 't',
     fontOverride: "'Helvetica', sans-serif",
-    outlineColor: '#bdffbf',
+    textColor: '#4F7396',
   },
   c: {
     id: 'c',
     fontOverride: "'Snell Roundhand', cursive",
-    outlineColor: '#F3E0BE',
+    textColor: '#625F99',
   },
   h: {
     id: 'h',
     fontOverride: "'Bungee', sans-serif",
-    outlineColor: '#d7d6ff',
+    textColor: '#815F8C',
   },
 }
 

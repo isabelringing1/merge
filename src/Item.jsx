@@ -56,7 +56,7 @@ function Item({
   onPointerDown,
   generatorHapticsEnabled,
 }) {
-  const { fontOverride, fontWeight, outlineColor } = getItemType(item.type)
+  const { fontOverride, fontWeight, textColor } = getItemType(item.type)
   const element = useRef(null)
   const hapticSwitch = useRef(null)
   // Each pulse carries a new id so repeated pulses on the same cell replay the
@@ -115,7 +115,7 @@ function Item({
     .filter(Boolean)
     .join(' ')
 
-  const style = { fontFamily: fontOverride, '--item-outline-color': outlineColor }
+  const style = { fontFamily: fontOverride, '--item-text-color': textColor }
   if (fontWeight !== undefined) style.fontWeight = fontWeight
   if (dragging) style.transform = `translate(${offset.x}px, ${offset.y}px)`
 

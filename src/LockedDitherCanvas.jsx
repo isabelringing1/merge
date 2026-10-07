@@ -11,24 +11,30 @@ function LockedDitherCanvas({
   neighborCount,
 }) {
   const canvasRef = useRef(null)
-  const [randomSeed] = useState(() => Math.floor(Math.random() * 1_000_000) + 1)
+  // Capture the neighboring state when this lock first appears. The cover must
+  // not be regenerated as nearby hidden cells are revealed.
+  const [pattern] = useState(() => {
+    const hiddenRatio = neighborCount ? hiddenNeighborCount / neighborCount : 0
+    const randomSeed = Math.floor(Math.random() * 1_000_000) + 1
+
+    return {
+      seed: randomSeed + tileIndex * 131 + hiddenNeighborMask * 977,
+      densityOffset: (hiddenRatio - 0.5) * 0.28,
+    }
+  })
 
   useEffect(() => {
     const canvas = canvasRef.current
     const context = canvas?.getContext('2d')
     if (!canvas || !context) return
 
-    const hiddenRatio = neighborCount ? hiddenNeighborCount / neighborCount : 0
-    const influencedSeed =
-      randomSeed + tileIndex * 131 + hiddenNeighborMask * 977
-
     context.imageSmoothingEnabled = false
     drawBoardDither(context, SIZE, SIZE, {
-      seed: influencedSeed,
+      seed: pattern.seed,
       samplesPerTile: SIZE,
       boardColumns: 1,
       boardRows: 1,
-      densityOffset: (hiddenRatio - 0.5) * 0.28,
+      densityOffset: pattern.densityOffset,
     })
 
     // Remove everything above the fixed, jagged rip while preserving the
@@ -36,13 +42,7 @@ function LockedDitherCanvas({
     RIP_EDGE.forEach((edge, column) => {
       context.clearRect(column, 0, 1, edge)
     })
-  }, [
-    hiddenNeighborCount,
-    hiddenNeighborMask,
-    neighborCount,
-    randomSeed,
-    tileIndex,
-  ])
+  }, [pattern])
 
   return <canvas ref={canvasRef} width={SIZE} height={SIZE} aria-hidden="true" />
 }

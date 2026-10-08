@@ -31,14 +31,22 @@ function valueNoise(x, y, seed) {
   return top * (1 - ty) + bottom * ty
 }
 
-function cellTone(column, row, columns, rows, seed) {
-  const safeColumn = Math.max(0, Math.min(columns - 1, column))
-  const safeRow = Math.max(0, Math.min(rows - 1, row))
-  const tone = randomAt(safeColumn, safeRow, seed + 101)
+function cellTone(column, row, seed) {
+  const tone = randomAt(column, row, seed + 101)
   return 0.12 + (Math.round(tone * 5) / 5) * 0.8
 }
 
-function cellDensity(x, y, width, height, columns, rows, seed) {
+function cellDensity(
+  x,
+  y,
+  width,
+  height,
+  columns,
+  rows,
+  seed,
+  originColumn,
+  originRow,
+) {
   const cellWidth = width / columns
   const cellHeight = height / rows
   const cellX = x / cellWidth - 0.5
@@ -48,21 +56,43 @@ function cellDensity(x, y, width, height, columns, rows, seed) {
   const tx = smoothstep(cellX - column)
   const ty = smoothstep(cellY - row)
   const top =
-    cellTone(column, row, columns, rows, seed) * (1 - tx) +
-    cellTone(column + 1, row, columns, rows, seed) * tx
+    cellTone(column + originColumn, row + originRow, seed) * (1 - tx) +
+    cellTone(column + 1 + originColumn, row + originRow, seed) * tx
   const bottom =
-    cellTone(column, row + 1, columns, rows, seed) * (1 - tx) +
-    cellTone(column + 1, row + 1, columns, rows, seed) * tx
+    cellTone(column + originColumn, row + 1 + originRow, seed) * (1 - tx) +
+    cellTone(column + 1 + originColumn, row + 1 + originRow, seed) * tx
   return top * (1 - ty) + bottom * ty
 }
 
-function patchDensity(x, y, width, height, columns, rows, seed) {
-  const squareField = cellDensity(x, y, width, height, columns, rows, seed)
+function patchDensity(
+  x,
+  y,
+  width,
+  height,
+  columns,
+  rows,
+  seed,
+  originColumn,
+  originRow,
+) {
+  const squareField = cellDensity(
+    x,
+    y,
+    width,
+    height,
+    columns,
+    rows,
+    seed,
+    originColumn,
+    originRow,
+  )
   const cellScale = (width / columns + height / rows) / 2
-  const medium = valueNoise(x / cellScale, y / cellScale, seed + 19)
+  const fieldX = x / cellScale + originColumn
+  const fieldY = y / cellScale + originRow
+  const medium = valueNoise(fieldX, fieldY, seed + 19)
   const detail = valueNoise(
-    x / (cellScale * 0.45),
-    y / (cellScale * 0.45),
+    fieldX / 0.45,
+    fieldY / 0.45,
     seed + 47,
   )
   const organicField = medium * 0.68 + detail * 0.32
@@ -78,11 +108,13 @@ export function drawBoardDither(
   {
     seed = 208, //good seeds - 208, 370661
     samplesPerTile = 12,
-    foreground = '#383838',
+    foreground = '#5D5D5D',
     background = '#F7F7F7',
     boardColumns = 6,
     boardRows = 8,
     densityOffset = 0,
+    originColumn = 0,
+    originRow = 0,
   } = {},
 ) {
   context.clearRect(0, 0, width, height)
@@ -114,10 +146,17 @@ export function drawBoardDither(
             boardColumns,
             boardRows,
             seed,
+            originColumn,
+            originRow,
           ) + densityOffset,
         ),
       )
-      const threshold = (BAYER_8X8[row % 8][column % 8] + 0.5) / 64
+      const patternRow = row + originRow * samplesPerTile
+      const patternColumn = column + originColumn * samplesPerTile
+      const threshold =
+        (BAYER_8X8[((patternRow % 8) + 8) % 8][((patternColumn % 8) + 8) % 8] +
+          0.5) /
+        64
 
       if (density > threshold) {
         context.fillRect(left, top, right - left, bottom - top)

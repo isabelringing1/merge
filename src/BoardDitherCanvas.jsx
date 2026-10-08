@@ -19,15 +19,18 @@ function loadOrCreateSeed() {
 
 function BoardDitherCanvas({ columns, rows }) {
   const canvasRef = useRef(null)
+  const surroundRef = useRef(null)
   const [seed] = useState(loadOrCreateSeed)
 
   useEffect(() => {
     const canvas = canvasRef.current
+    const surround = surroundRef.current
     const board = canvas?.parentElement
-    if (!canvas || !board) return undefined
+    if (!canvas || !surround || !board) return undefined
 
     const render = () => {
-      const { width, height } = canvas.getBoundingClientRect()
+      const boardRect = board.getBoundingClientRect()
+      const { width, height } = boardRect
       if (width <= 0 || height <= 0) return
 
       // One backing-canvas pixel is one dither sample. Scaling this exact grid
@@ -45,16 +48,59 @@ function BoardDitherCanvas({ columns, rows }) {
         boardColumns: columns,
         boardRows: rows,
       })
+
+      const cellWidth = width / columns
+      const cellHeight = height / rows
+      const columnsBefore = Math.ceil(boardRect.left / cellWidth)
+      const columnsAfter = Math.ceil(
+        (window.innerWidth - boardRect.right) / cellWidth,
+      )
+      const surroundColumns = columnsBefore + columns + columnsAfter
+      const surroundRows = Math.max(
+        rows,
+        Math.ceil((window.innerHeight - boardRect.top) / cellHeight),
+      )
+
+      surround.width = surroundColumns * SAMPLES_PER_TILE
+      surround.height = surroundRows * SAMPLES_PER_TILE
+      surround.style.left = `${-columnsBefore * cellWidth}px`
+      surround.style.width = `${surroundColumns * cellWidth}px`
+      surround.style.height = `${surroundRows * cellHeight}px`
+
+      const surroundContext = surround.getContext('2d')
+      if (!surroundContext) return
+      surroundContext.setTransform(1, 0, 0, 1, 0, 0)
+      surroundContext.imageSmoothingEnabled = false
+      drawBoardDither(surroundContext, surround.width, surround.height, {
+        seed,
+        samplesPerTile: SAMPLES_PER_TILE,
+        boardColumns: surroundColumns,
+        boardRows: surroundRows,
+        originColumn: -columnsBefore,
+      })
     }
 
     const observer = new ResizeObserver(render)
     observer.observe(board)
+    window.addEventListener('resize', render)
     render()
 
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', render)
+    }
   }, [columns, rows, seed])
 
-  return <canvas ref={canvasRef} className="board-dither" aria-hidden="true" />
+  return (
+    <>
+      <canvas
+        ref={surroundRef}
+        className="board-dither-surround"
+        aria-hidden="true"
+      />
+      <canvas ref={canvasRef} className="board-dither" aria-hidden="true" />
+    </>
+  )
 }
 
 export default BoardDitherCanvas

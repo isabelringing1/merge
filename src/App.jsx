@@ -16,13 +16,21 @@ import { MAX_ENERGY, useEnergy } from './energy.js'
 import './App.css'
 
 const TITLE = 'NUMBER MINE'
-const SNAP_MS = 150
 const SPAWN_MS = 280
 const SWAP_MS = 220
 // Small buffer so an item becomes grabbable strictly after it has landed.
 const SPAWN_SETTLE_MS = 60
 // Pointer movement (px) allowed before a press counts as a drag instead of a tap.
 const TAP_SLOP = 8
+// A quick release projects the pointer forward, giving pieces a short, bounded
+// "throw" only after the player has already dragged across a meaningful part
+// of the board. Short, precise moves land exactly where the finger releases.
+const THROW_LOOKAHEAD_MS = 120
+const THROW_START_DISTANCE_CELLS = 2
+const THROW_FULL_DISTANCE_CELLS = 5
+const MAX_THROW_CELLS = 0.85
+const DROP_RADIUS_CELLS = 1.15
+const VELOCITY_WINDOW_MS = 90
 const ENERGY_PULSE_KEYFRAMES = [
   { transform: 'scale(1)' },
   { transform: 'scale(1.18)', offset: 0.45 },
@@ -37,6 +45,81 @@ function cellIndexAt(x, y) {
 function cellCenter(index) {
   const rect = document.querySelector(`[data-index="${index}"]`)?.getBoundingClientRect()
   return rect && { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+}
+
+function dragVelocity(samples) {
+  if (samples.length < 2) return { x: 0, y: 0 }
+  const last = samples[samples.length - 1]
+  const first =
+    samples.find((sample) => last.time - sample.time <= VELOCITY_WINDOW_MS) ?? samples[0]
+  const elapsed = last.time - first.time
+  if (elapsed <= 0) return { x: 0, y: 0 }
+  return {
+    x: (last.x - first.x) / elapsed,
+    y: (last.y - first.y) / elapsed,
+  }
+}
+
+function intendedDrop(cells, from, x, y, dragDistance, velocity = { x: 0, y: 0 }) {
+  const sourceRect = document
+    .querySelector(`[data-index="${from}"]`)
+    ?.getBoundingClientRect()
+  if (!sourceRect) return null
+
+  const cellSize = Math.max(sourceRect.width, sourceRect.height)
+  const dragDistanceCells = dragDistance / cellSize
+  const throwStrength = Math.max(
+    0,
+    Math.min(
+      1,
+      (dragDistanceCells - THROW_START_DISTANCE_CELLS) /
+        (THROW_FULL_DISTANCE_CELLS - THROW_START_DISTANCE_CELLS),
+    ),
+  )
+  const rawProjection = {
+    x: velocity.x * THROW_LOOKAHEAD_MS * throwStrength,
+    y: velocity.y * THROW_LOOKAHEAD_MS * throwStrength,
+  }
+  const projectionLength = Math.hypot(rawProjection.x, rawProjection.y)
+  const maxProjection = cellSize * MAX_THROW_CELLS
+  const projectionScale =
+    projectionLength > maxProjection ? maxProjection / projectionLength : 1
+  const projected = {
+    x: x + rawProjection.x * projectionScale,
+    y: y + rawProjection.y * projectionScale,
+  }
+  const directlyUnderPointer = cellIndexAt(x, y)
+  if (directlyUnderPointer === from) {
+    return { index: from, outcome: 'return' }
+  }
+  let best = null
+
+  cells.forEach((_, index) => {
+    const outcome = dropOutcome(cells, from, index)
+    if (!outcome) return
+    const center = cellCenter(index)
+    if (!center) return
+
+    const projectedDistance = Math.hypot(center.x - projected.x, center.y - projected.y)
+    const releaseDistance = Math.hypot(center.x - x, center.y - y)
+    if (
+      projectedDistance > cellSize * DROP_RADIUS_CELLS &&
+      index !== directlyUnderPointer
+    ) {
+      return
+    }
+
+    // Merges and empty slots are more intentional than swaps when a release is
+    // ambiguous. An exact release on a swappable item still wins naturally.
+    const outcomePenalty =
+      outcome === 'swap' ? cellSize * 0.22 : outcome === 'merge' ? -cellSize * 0.08 : 0
+    const score = projectedDistance + releaseDistance * 0.12 + outcomePenalty
+    if (!best || score < best.score) best = { index, outcome, score }
+  })
+
+  return best
+    ? { index: best.index, outcome: best.outcome }
+    : { index: from, outcome: 'return' }
 }
 
 function hiddenNeighborsAt(cells, index, columns, rows) {
@@ -98,8 +181,10 @@ function GameBoard({ active, onBack }) {
 
   // Index of the item being dragged plus its offset from where the drag started.
   const [drag, setDrag] = useState(null)
-  // Index of an item animating back after an invalid drop.
-  const [snapping, setSnapping] = useState(null)
+  const dragSession = useRef(null)
+  const dragFrame = useRef(null)
+  const cellsRef = useRef(cells)
+  const [dropTarget, setDropTarget] = useState(null)
   // Which cell's item is pulsing, and an id that changes on every pulse so the
   // same cell can pulse repeatedly.
   const [pulse, setPulse] = useState(null)
@@ -109,10 +194,13 @@ function GameBoard({ active, onBack }) {
   // Both items in a swap animate from their old visual positions into the
   // cells they occupy after the state update.
   const [swaps, setSwaps] = useState({})
-  const snapTimeout = useRef(null)
   const spawnTimeouts = useRef(new Set())
   const swapTimeouts = useRef(new Set())
   const pulseId = useRef(0)
+
+  useEffect(() => {
+    cellsRef.current = cells
+  }, [cells])
 
   const pulseItem = useCallback((index) => {
     pulseId.current += 1
@@ -124,7 +212,6 @@ function GameBoard({ active, onBack }) {
   const spawnFrom = useCallback(
     (from, cells) => {
       if (!spendEnergy()) return
-      pulseItem(from)
 
       const to = nearestOpenCell(cells, from)
       if (to === null) return
@@ -150,12 +237,13 @@ function GameBoard({ active, onBack }) {
       }, SPAWN_MS + SPAWN_SETTLE_MS)
       spawnTimeouts.current.add(timeout)
     },
-    [dispatch, pulseItem, spendEnergy],
+    [dispatch, spendEnergy],
   )
 
   const handlePointerDown = useCallback(
     (index) => (event) => {
       if (
+        dragSession.current ||
         cells[index].hidden ||
         !cells[index].item ||
         cells[index].locked ||
@@ -164,45 +252,143 @@ function GameBoard({ active, onBack }) {
         return
       }
       event.preventDefault()
-      setDrag({ index, startX: event.clientX, startY: event.clientY, x: 0, y: 0 })
+      const pressedSelectedTile =
+        dropTarget?.index === index && cells[index].item.kind !== 'generator'
+      const session = {
+        index,
+        startX: event.clientX,
+        startY: event.clientY,
+        x: 0,
+        y: 0,
+        pointerX: event.clientX,
+        pointerY: event.clientY,
+        pointerId: event.pointerId,
+        pressedSelectedTile,
+        samples: [{ x: event.clientX, y: event.clientY, time: event.timeStamp }],
+        element: event.currentTarget,
+      }
+      dragSession.current = session
+      event.currentTarget.style.transform = 'translate3d(0, 0, 0) scale(1.06)'
+      setDropTarget(pressedSelectedTile ? null : { index, outcome: 'return' })
+      setDrag({ index })
     },
-    [cells],
+    [cells, dropTarget],
   )
 
   useEffect(() => {
-    if (!drag) return
-
     const onMove = (event) => {
-      setDrag((current) =>
-        current && {
-          ...current,
-          x: event.clientX - current.startX,
-          y: event.clientY - current.startY,
-        },
-      )
+      const session = dragSession.current
+      if (!session || event.pointerId !== session.pointerId) return
+      const events = event.getCoalescedEvents?.() ?? [event]
+      for (const pointerEvent of events) {
+        session.pointerX = pointerEvent.clientX
+        session.pointerY = pointerEvent.clientY
+        session.x = pointerEvent.clientX - session.startX
+        session.y = pointerEvent.clientY - session.startY
+        session.samples.push({
+          x: pointerEvent.clientX,
+          y: pointerEvent.clientY,
+          time: pointerEvent.timeStamp,
+        })
+      }
+      if (session.samples.length > 12) session.samples.splice(0, session.samples.length - 12)
+
+      if (dragFrame.current !== null) return
+      dragFrame.current = requestAnimationFrame(() => {
+        dragFrame.current = null
+        const current = dragSession.current
+        if (!current) return
+        current.element.style.transform =
+          `translate3d(${current.x}px, ${current.y}px, 0) scale(1.06)`
+        const target = intendedDrop(
+          cellsRef.current,
+          current.index,
+          current.pointerX,
+          current.pointerY,
+          Math.hypot(current.x, current.y),
+          dragVelocity(current.samples),
+        )
+        setDropTarget((previous) =>
+          previous?.index === target?.index && previous?.outcome === target?.outcome
+            ? previous
+            : target,
+        )
+      })
     }
 
     const onUp = (event) => {
+      const session = dragSession.current
+      if (!session || event.pointerId !== session.pointerId) return
+      if (dragFrame.current !== null) {
+        cancelAnimationFrame(dragFrame.current)
+        dragFrame.current = null
+      }
+      session.pointerX = event.clientX
+      session.pointerY = event.clientY
+      session.x = event.clientX - session.startX
+      session.y = event.clientY - session.startY
+      session.samples.push({ x: event.clientX, y: event.clientY, time: event.timeStamp })
+      const currentCells = cellsRef.current
+
       // A press that barely moved is a tap. Tapping a generator spawns from it;
-      // tapping anything else does nothing.
-      if (Math.hypot(drag.x, drag.y) <= TAP_SLOP) {
-        if (cells[drag.index].item.kind === 'generator') spawnFrom(drag.index, cells)
+      // every other item gives the same pulse feedback.
+      if (Math.hypot(session.x, session.y) <= TAP_SLOP) {
+        session.element.style.transform = ''
+        pulseItem(session.index)
+        if (currentCells[session.index].item.kind === 'generator') {
+          spawnFrom(session.index, currentCells)
+        }
+        dragSession.current = null
+        setDropTarget(
+          session.pressedSelectedTile
+            ? null
+            : { index: session.index, outcome: 'return' },
+        )
         setDrag(null)
         return
       }
 
-      const to = cellIndexAt(event.clientX, event.clientY)
-      const outcome = to === null ? null : dropOutcome(cells, drag.index, to)
+      const target =
+        event.type === 'pointercancel'
+          ? null
+          : intendedDrop(
+              currentCells,
+              session.index,
+              event.clientX,
+              event.clientY,
+              Math.hypot(session.x, session.y),
+              dragVelocity(session.samples),
+            )
+      const to = target?.index ?? null
+      const outcome = target?.outcome ?? null
+      const source = cellCenter(session.index)
+      const destination = to === null ? null : cellCenter(to)
 
       if (outcome === 'move') {
-        dispatch(moveItem({ from: drag.index, to }))
+        if (source && destination) {
+          const flight = {
+            dx: source.x + session.x - destination.x,
+            dy: source.y + session.y - destination.y,
+            kind: 'drop',
+          }
+          setSwaps((current) => ({ ...current, [to]: flight }))
+          const timeout = setTimeout(() => {
+            swapTimeouts.current.delete(timeout)
+            setSwaps((current) => {
+              if (current[to] !== flight) return current
+              const next = { ...current }
+              delete next[to]
+              return next
+            })
+          }, SWAP_MS)
+          swapTimeouts.current.add(timeout)
+        }
+        dispatch(moveItem({ from: session.index, to }))
       } else if (outcome === 'swap') {
-        const source = cellCenter(drag.index)
-        const destination = cellCenter(to)
         if (source && destination) {
           const draggedFlight = {
-            dx: source.x + drag.x - destination.x,
-            dy: source.y + drag.y - destination.y,
+            dx: source.x + session.x - destination.x,
+            dy: source.y + session.y - destination.y,
             kind: 'drop',
           }
           const displacedFlight = {
@@ -213,7 +399,7 @@ function GameBoard({ active, onBack }) {
           setSwaps((current) => ({
             ...current,
             [to]: draggedFlight,
-            [drag.index]: displacedFlight,
+            [session.index]: displacedFlight,
           }))
 
           const timeout = setTimeout(() => {
@@ -221,27 +407,39 @@ function GameBoard({ active, onBack }) {
             setSwaps((current) => {
               if (
                 current[to] !== draggedFlight ||
-                current[drag.index] !== displacedFlight
+                current[session.index] !== displacedFlight
               ) {
                 return current
               }
               const next = { ...current }
               delete next[to]
-              delete next[drag.index]
+              delete next[session.index]
               return next
             })
           }, SWAP_MS)
           swapTimeouts.current.add(timeout)
         }
-        dispatch(swapItems({ from: drag.index, to }))
+        dispatch(swapItems({ from: session.index, to }))
       } else if (outcome === 'merge') {
-        dispatch(mergeItems({ from: drag.index, to }))
+        dispatch(mergeItems({ from: session.index, to }))
         pulseItem(to)
       } else {
-        setSnapping(drag.index)
-        clearTimeout(snapTimeout.current)
-        snapTimeout.current = setTimeout(() => setSnapping(null), SNAP_MS)
+        session.element.animate(
+          [
+            {
+              transform: `translate3d(${session.x}px, ${session.y}px, 0) scale(1.06)`,
+            },
+            { transform: 'translate3d(0, 0, 0) scale(1)' },
+          ],
+          { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+        )
       }
+      session.element.style.transform = ''
+      dragSession.current = null
+      setDropTarget({
+        index: to ?? session.index,
+        outcome: outcome ?? 'return',
+      })
       setDrag(null)
     }
 
@@ -253,11 +451,11 @@ function GameBoard({ active, onBack }) {
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [drag, cells, dispatch, pulseItem, spawnFrom])
+  }, [dispatch, pulseItem, spawnFrom])
 
   useEffect(
     () => () => {
-      clearTimeout(snapTimeout.current)
+      if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current)
       spawnTimeouts.current.forEach(clearTimeout)
       spawnTimeouts.current.clear()
       swapTimeouts.current.forEach(clearTimeout)
@@ -295,15 +493,13 @@ function GameBoard({ active, onBack }) {
               locked={cell.locked}
               item={cell.item}
               dragging={drag?.index === index}
-              snapping={snapping === index}
+              dropTarget={dropTarget?.index === index ? dropTarget.outcome : null}
               pulse={pulse?.index === index ? pulse.id : null}
               spawn={spawns[index] ?? null}
               spawnMs={SPAWN_MS}
               swap={swaps[index] ?? null}
               swapMs={SWAP_MS}
-              offset={drag?.index === index ? { x: drag.x, y: drag.y } : null}
               onItemPointerDown={handlePointerDown(index)}
-              generatorHapticsEnabled={energy > 0}
               {...hiddenNeighbors}
             />
           )

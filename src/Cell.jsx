@@ -8,37 +8,32 @@ function Cell({
   locked,
   item,
   dragging,
-  snapping,
+  dropTarget,
   pulse,
   spawn,
   spawnMs,
   swap,
   swapMs,
-  offset,
   onItemPointerDown,
-  generatorHapticsEnabled,
   hiddenNeighborMask,
   hiddenNeighborCount,
   neighborCount,
 }) {
   return (
     <div
-      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}${dragging ? ' dragging' : ''}${spawn ? ' spawning' : ''}${swap ? ' swapping' : ''}`}
+      className={`cell ${hidden ? 'hidden' : 'revealed'}${checkerDark ? ' checker-dark' : ''}${locked ? ' locked' : ''}${dragging ? ' dragging' : ''}${dropTarget ? ` drop-target drop-${dropTarget}` : ''}${spawn ? ' spawning' : ''}${swap ? ' swapping' : ''}`}
       data-index={index}
     >
       {!hidden && item && (
         <Item
           item={item}
           dragging={dragging}
-          snapping={snapping}
           pulse={pulse}
           spawn={spawn}
           spawnMs={spawnMs}
           swap={swap}
           swapMs={swapMs}
-          offset={offset}
           onPointerDown={onItemPointerDown}
-          generatorHapticsEnabled={generatorHapticsEnabled}
         />
       )}
       {!hidden && locked && (

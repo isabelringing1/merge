@@ -321,6 +321,24 @@
   cursor: grabbing;
   pointer-events: none;
   z-index: 5;
+  filter: drop-shadow(0 0.12em 0.1em rgba(0, 0, 0, 0.22));
+  will-change: transform;
+}
+
+.cell.drop-target::after {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  z-index: 2;
+  border: max(2px, 0.22dvh) solid rgba(0, 0, 0, 0.3);
+  border-radius: 14%;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+
+.cell.drop-merge::after {
+  border-width: max(3px, 0.32dvh);
+  background: rgba(255, 255, 255, 0.48);
 }
 
 /* Mid-spawn items are still in flight, so they can't be grabbed yet. */
@@ -334,11 +352,6 @@
   pointer-events: none;
   cursor: default;
   z-index: 5;
-}
-
-.item.snapping {
-  z-index: 5;
-  transition: transform 0.15s ease-out;
 }
 
 @media (min-width: 601px) {

@@ -46,19 +46,15 @@ function swapKeyframes(dx, dy, kind) {
 function Item({
   item,
   dragging,
-  snapping,
   pulse,
   spawn,
   swap,
-  offset,
   spawnMs,
   swapMs,
   onPointerDown,
-  generatorHapticsEnabled,
 }) {
   const { fontOverride, fontWeight, textColor } = getItemType(item.type)
   const element = useRef(null)
-  const hapticSwitch = useRef(null)
   // Each pulse carries a new id so repeated pulses on the same cell replay the
   // animation. Seeded with the mount value so mounting never pulses.
   const lastPulse = useRef(pulse)
@@ -66,15 +62,10 @@ function Item({
   const setElement = useCallback(
     (node) => {
       element.current = node
-      if (item.kind === 'generator') hapticSwitch.current = attachHaptic(node)
+      if (node) attachHaptic(node)
     },
-    [item.kind],
+    [],
   )
-
-  useLayoutEffect(() => {
-    if (!hapticSwitch.current) return
-    hapticSwitch.current.style.pointerEvents = generatorHapticsEnabled ? '' : 'none'
-  }, [generatorHapticsEnabled])
 
   useEffect(() => {
     if (pulse === null || pulse === lastPulse.current) return
@@ -108,7 +99,6 @@ function Item({
   const className = [
     'item',
     dragging && 'dragging',
-    snapping && 'snapping',
     spawn && 'spawning',
     swap && 'swapping',
   ]
@@ -117,7 +107,6 @@ function Item({
 
   const style = { fontFamily: fontOverride, '--item-text-color': textColor }
   if (fontWeight !== undefined) style.fontWeight = fontWeight
-  if (dragging) style.transform = `translate(${offset.x}px, ${offset.y}px)`
 
   return (
     <div ref={setElement} className={className} style={style} onPointerDown={onPointerDown}>

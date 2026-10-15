@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import {
+  createItemId,
   dropOutcome,
   mergeItems,
   moveItem,
   nearestOpenCell,
   spawnItem,
+  store,
   swapItems,
 } from './store.js'
 import Cell from './Cell.jsx'
@@ -18,6 +20,9 @@ import './App.css'
 const TITLE = 'NUMBER MINE'
 const SPAWN_MS = 280
 const SWAP_MS = 220
+const DROP_MS = 330
+const GRAVITY_MS = 440
+const GRAVITY_DROP_MS = 440
 // Small buffer so an item becomes grabbable strictly after it has landed.
 const SPAWN_SETTLE_MS = 60
 // Pointer movement (px) allowed before a press counts as a drag instead of a tap.
@@ -175,7 +180,7 @@ function EnergyCounter({ energy }) {
 }
 
 function GameBoard({ active, onBack }) {
-  const { cols, rows, cells } = useSelector((state) => state.grid)
+  const { cols, rows, cells, gravity } = useSelector((state) => state.grid)
   const dispatch = useDispatch()
   const { energy, secondsToNext, spendEnergy } = useEnergy()
 
@@ -196,6 +201,13 @@ function GameBoard({ active, onBack }) {
   const [swaps, setSwaps] = useState({})
   const spawnTimeouts = useRef(new Set())
   const swapTimeouts = useRef(new Set())
+  // Manual drops and spawns already animate their full route to the settled
+  // cell. Remember those item ids so their stored gravity leg is not replayed
+  // after the manual animation state is cleared.
+  const [suppressedGravity, setSuppressedGravity] = useState({
+    revision: -1,
+    ids: new Set(),
+  })
   const pulseId = useRef(0)
 
   useEffect(() => {
@@ -205,6 +217,13 @@ function GameBoard({ active, onBack }) {
   const pulseItem = useCallback((index) => {
     pulseId.current += 1
     setPulse({ index, id: pulseId.current })
+  }, [])
+
+  const suppressSettledGravity = useCallback((settledGrid, animatedIds) => {
+    setSuppressedGravity({
+      revision: settledGrid.gravity.revision,
+      ids: new Set(animatedIds),
+    })
   }, [])
 
   // Spawns a value-1 item into the nearest open cell and tweens it out of the
@@ -218,26 +237,30 @@ function GameBoard({ active, onBack }) {
 
       // Measured before the dispatch, while both cells are still on screen.
       const origin = cellCenter(from)
-      const destination = cellCenter(to)
-      dispatch(spawnItem({ from, to }))
+      const id = createItemId()
+      dispatch(spawnItem({ from, to, id }))
+      const settledGrid = store.getState().grid
+      suppressSettledGravity(settledGrid, [id])
+      const landedAt = settledGrid.cells.findIndex((cell) => cell.item?.id === id)
+      const destination = cellCenter(landedAt)
 
       if (!origin || !destination) return
       const flight = { dx: origin.x - destination.x, dy: origin.y - destination.y }
-      setSpawns((current) => ({ ...current, [to]: flight }))
+      setSpawns((current) => ({ ...current, [landedAt]: flight }))
 
       const timeout = setTimeout(() => {
         spawnTimeouts.current.delete(timeout)
         setSpawns((current) => {
           // Leave it alone if a newer spawn has already claimed this cell.
-          if (current[to] !== flight) return current
+          if (current[landedAt] !== flight) return current
           const next = { ...current }
-          delete next[to]
+          delete next[landedAt]
           return next
         })
       }, SPAWN_MS + SPAWN_SETTLE_MS)
       spawnTimeouts.current.add(timeout)
     },
-    [dispatch, spendEnergy],
+    [dispatch, spendEnergy, suppressSettledGravity],
   )
 
   const handlePointerDown = useCallback(
@@ -252,14 +275,23 @@ function GameBoard({ active, onBack }) {
         return
       }
       event.preventDefault()
+      const itemRect = event.currentTarget.getBoundingClientRect()
+      const cellRect = event.currentTarget.closest('[data-index]')?.getBoundingClientRect()
+      const visualX = cellRect ? itemRect.left - cellRect.left : 0
+      const visualY = cellRect ? itemRect.top - cellRect.top : 0
+      event.currentTarget.getAnimations().forEach((animation) => animation.cancel())
       const pressedSelectedTile =
         dropTarget?.index === index && cells[index].item.kind !== 'generator'
       const session = {
         index,
         startX: event.clientX,
         startY: event.clientY,
-        x: 0,
-        y: 0,
+        x: visualX,
+        y: visualY,
+        visualX,
+        visualY,
+        dragX: 0,
+        dragY: 0,
         pointerX: event.clientX,
         pointerY: event.clientY,
         pointerId: event.pointerId,
@@ -268,7 +300,8 @@ function GameBoard({ active, onBack }) {
         element: event.currentTarget,
       }
       dragSession.current = session
-      event.currentTarget.style.transform = 'translate3d(0, 0, 0) scale(1.06)'
+      event.currentTarget.style.transform =
+        `translate3d(${visualX}px, ${visualY}px, 0) scale(1.06)`
       setDropTarget(pressedSelectedTile ? null : { index, outcome: 'return' })
       setDrag({ index })
     },
@@ -283,8 +316,10 @@ function GameBoard({ active, onBack }) {
       for (const pointerEvent of events) {
         session.pointerX = pointerEvent.clientX
         session.pointerY = pointerEvent.clientY
-        session.x = pointerEvent.clientX - session.startX
-        session.y = pointerEvent.clientY - session.startY
+        session.dragX = pointerEvent.clientX - session.startX
+        session.dragY = pointerEvent.clientY - session.startY
+        session.x = session.visualX + session.dragX
+        session.y = session.visualY + session.dragY
         session.samples.push({
           x: pointerEvent.clientX,
           y: pointerEvent.clientY,
@@ -305,7 +340,7 @@ function GameBoard({ active, onBack }) {
           current.index,
           current.pointerX,
           current.pointerY,
-          Math.hypot(current.x, current.y),
+          Math.hypot(current.dragX, current.dragY),
           dragVelocity(current.samples),
         )
         setDropTarget((previous) =>
@@ -325,14 +360,16 @@ function GameBoard({ active, onBack }) {
       }
       session.pointerX = event.clientX
       session.pointerY = event.clientY
-      session.x = event.clientX - session.startX
-      session.y = event.clientY - session.startY
+      session.dragX = event.clientX - session.startX
+      session.dragY = event.clientY - session.startY
+      session.x = session.visualX + session.dragX
+      session.y = session.visualY + session.dragY
       session.samples.push({ x: event.clientX, y: event.clientY, time: event.timeStamp })
       const currentCells = cellsRef.current
 
       // A press that barely moved is a tap. Tapping a generator spawns from it;
       // every other item gives the same pulse feedback.
-      if (Math.hypot(session.x, session.y) <= TAP_SLOP) {
+      if (Math.hypot(session.dragX, session.dragY) <= TAP_SLOP) {
         session.element.style.transform = ''
         pulseItem(session.index)
         if (currentCells[session.index].item.kind === 'generator') {
@@ -356,73 +393,106 @@ function GameBoard({ active, onBack }) {
               session.index,
               event.clientX,
               event.clientY,
-              Math.hypot(session.x, session.y),
+              Math.hypot(session.dragX, session.dragY),
               dragVelocity(session.samples),
             )
       const to = target?.index ?? null
       const outcome = target?.outcome ?? null
       const source = cellCenter(session.index)
       const destination = to === null ? null : cellCenter(to)
+      let restingTarget = to
 
       if (outcome === 'move') {
-        if (source && destination) {
+        const draggedId = currentCells[session.index].item.id
+        dispatch(moveItem({ from: session.index, to }))
+        const settledGrid = store.getState().grid
+        suppressSettledGravity(settledGrid, [draggedId])
+        restingTarget = settledGrid.cells.findIndex((cell) => cell.item?.id === draggedId)
+        const restingDestination = cellCenter(restingTarget)
+        const gravityMove = settledGrid.gravity.moves.find(
+          (move) => move.id === draggedId,
+        )
+        const motionMs = gravityMove ? GRAVITY_DROP_MS : DROP_MS
+        if (source && destination && restingDestination) {
           const flight = {
-            dx: source.x + session.x - destination.x,
-            dy: source.y + session.y - destination.y,
-            kind: 'drop',
+            dx: source.x + session.x - restingDestination.x,
+            dy: source.y + session.y - restingDestination.y,
+            settleDx: destination.x - restingDestination.x,
+            settleDy: destination.y - restingDestination.y,
+            kind: gravityMove ? 'gravity-drop' : 'drop',
           }
-          setSwaps((current) => ({ ...current, [to]: flight }))
+          setSwaps((current) => ({ ...current, [restingTarget]: flight }))
           const timeout = setTimeout(() => {
             swapTimeouts.current.delete(timeout)
             setSwaps((current) => {
-              if (current[to] !== flight) return current
+              if (current[restingTarget] !== flight) return current
               const next = { ...current }
-              delete next[to]
+              delete next[restingTarget]
               return next
             })
-          }, SWAP_MS)
+          }, motionMs)
           swapTimeouts.current.add(timeout)
         }
-        dispatch(moveItem({ from: session.index, to }))
       } else if (outcome === 'swap') {
-        if (source && destination) {
+        const draggedId = currentCells[session.index].item.id
+        const displacedId = currentCells[to].item.id
+        dispatch(swapItems({ from: session.index, to }))
+        const settledGrid = store.getState().grid
+        suppressSettledGravity(settledGrid, [draggedId, displacedId])
+        const settledCells = settledGrid.cells
+        restingTarget = settledCells.findIndex((cell) => cell.item?.id === draggedId)
+        const displacedTarget = settledCells.findIndex(
+          (cell) => cell.item?.id === displacedId,
+        )
+        const restingDestination = cellCenter(restingTarget)
+        const displacedDestination = cellCenter(displacedTarget)
+        const draggedGravityMove = settledGrid.gravity.moves.find(
+          (move) => move.id === draggedId,
+        )
+        const motionMs = draggedGravityMove ? GRAVITY_DROP_MS : DROP_MS
+        if (source && destination && restingDestination && displacedDestination) {
           const draggedFlight = {
-            dx: source.x + session.x - destination.x,
-            dy: source.y + session.y - destination.y,
-            kind: 'drop',
+            dx: source.x + session.x - restingDestination.x,
+            dy: source.y + session.y - restingDestination.y,
+            settleDx: destination.x - restingDestination.x,
+            settleDy: destination.y - restingDestination.y,
+            kind: draggedGravityMove ? 'gravity-drop' : 'drop',
           }
           const displacedFlight = {
-            dx: destination.x - source.x,
-            dy: destination.y - source.y,
+            dx: destination.x - displacedDestination.x,
+            dy: destination.y - displacedDestination.y,
             kind: 'tween',
           }
           setSwaps((current) => ({
             ...current,
-            [to]: draggedFlight,
-            [session.index]: displacedFlight,
+            [restingTarget]: draggedFlight,
+            [displacedTarget]: displacedFlight,
           }))
 
           const timeout = setTimeout(() => {
             swapTimeouts.current.delete(timeout)
             setSwaps((current) => {
               if (
-                current[to] !== draggedFlight ||
-                current[session.index] !== displacedFlight
+                current[restingTarget] !== draggedFlight ||
+                current[displacedTarget] !== displacedFlight
               ) {
                 return current
               }
               const next = { ...current }
-              delete next[to]
-              delete next[session.index]
+              delete next[restingTarget]
+              delete next[displacedTarget]
               return next
             })
-          }, SWAP_MS)
+          }, motionMs)
           swapTimeouts.current.add(timeout)
         }
-        dispatch(swapItems({ from: session.index, to }))
       } else if (outcome === 'merge') {
+        const mergedId = currentCells[to].item.id
         dispatch(mergeItems({ from: session.index, to }))
-        pulseItem(to)
+        restingTarget = store
+          .getState()
+          .grid.cells.findIndex((cell) => cell.item?.id === mergedId)
+        pulseItem(restingTarget)
       } else {
         session.element.animate(
           [
@@ -437,7 +507,7 @@ function GameBoard({ active, onBack }) {
       session.element.style.transform = ''
       dragSession.current = null
       setDropTarget({
-        index: to ?? session.index,
+        index: restingTarget ?? session.index,
         outcome: outcome ?? 'return',
       })
       setDrag(null)
@@ -451,7 +521,7 @@ function GameBoard({ active, onBack }) {
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [dispatch, pulseItem, spawnFrom])
+  }, [dispatch, pulseItem, spawnFrom, suppressSettledGravity])
 
   useEffect(
     () => () => {
@@ -484,6 +554,10 @@ function GameBoard({ active, onBack }) {
         <BoardDitherCanvas columns={cols} rows={rows} />
         {cells.map((cell, index) => {
           const hiddenNeighbors = hiddenNeighborsAt(cells, index, cols, rows)
+          const gravityMove = gravity.moves.find((move) => move.to === index)
+          const gravityWasAlreadyAnimated =
+            suppressedGravity.revision === gravity.revision &&
+            suppressedGravity.ids.has(gravityMove?.id)
           return (
             <Cell
               key={index}
@@ -498,7 +572,19 @@ function GameBoard({ active, onBack }) {
               spawn={spawns[index] ?? null}
               spawnMs={SPAWN_MS}
               swap={swaps[index] ?? null}
-              swapMs={SWAP_MS}
+              swapMs={
+                swaps[index]?.kind === 'gravity-drop'
+                  ? GRAVITY_DROP_MS
+                  : swaps[index]?.kind === 'drop'
+                    ? DROP_MS
+                    : SWAP_MS
+              }
+              gravity={
+                spawns[index] || swaps[index] || gravityWasAlreadyAnimated
+                  ? null
+                  : gravityMove
+              }
+              gravityMs={GRAVITY_MS}
               onItemPointerDown={handlePointerDown(index)}
               {...hiddenNeighbors}
             />

@@ -14,6 +14,8 @@ function Cell({
   spawnMs,
   swap,
   swapMs,
+  gravity,
+  gravityMs,
   onItemPointerDown,
   hiddenNeighborMask,
   hiddenNeighborCount,
@@ -33,6 +35,8 @@ function Cell({
           spawnMs={spawnMs}
           swap={swap}
           swapMs={swapMs}
+          gravity={gravity}
+          gravityMs={gravityMs}
           onPointerDown={onItemPointerDown}
         />
       )}

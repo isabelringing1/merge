@@ -10,6 +10,11 @@ const PREVIOUS_CELL_COUNT = COLS * 9
 const STORAGE_KEY = 'merge.board.v2'
 
 const emptyCell = () => ({ hidden: false, locked: false, item: null })
+const itemId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+
+export const createItemId = itemId
 
 // '<type>G' -> generator, '<type><int>' -> number. The type prefix is required.
 function itemFromDebugValue(value) {
@@ -22,8 +27,8 @@ function itemFromDebugValue(value) {
   const [, typeId, body] = match
   getItemType(typeId)
   return body === 'G'
-    ? { kind: 'generator', type: typeId }
-    : { kind: 'number', type: typeId, value: Number(body) }
+    ? { id: itemId(), kind: 'generator', type: typeId }
+    : { id: itemId(), kind: 'number', type: typeId, value: Number(body) }
 }
 
 function cellFromDebugValue(value) {
@@ -56,11 +61,73 @@ function cellsFromDebugGrid(rows) {
 
 function savedItem(item) {
   getItemType(item?.type)
-  if (item.kind === 'generator') return { kind: 'generator', type: item.type }
+  const id = typeof item.id === 'string' ? item.id : itemId()
+  if (item.kind === 'generator') return { id, kind: 'generator', type: item.type }
   if (item.kind === 'number' && Number.isInteger(item.value)) {
-    return { kind: 'number', type: item.type, value: item.value }
+    return { id, kind: 'number', type: item.type, value: item.value }
   }
   throw new Error(`Invalid saved item ${JSON.stringify(item)}`)
+}
+
+// Compact each uninterrupted, revealed-and-unlocked section of a column.
+// Hidden and locked cells are barriers even when empty, so gravity can never
+// pull an item through one to fill a vacancy on the other side.
+export function applyGravity(cells) {
+  const moves = []
+
+  for (let column = 0; column < COLS; column += 1) {
+    let segmentBottom = ROWS - 1
+
+    while (segmentBottom >= 0) {
+      const bottomIndex = segmentBottom * COLS + column
+      if (cells[bottomIndex].hidden || cells[bottomIndex].locked) {
+        segmentBottom -= 1
+        continue
+      }
+
+      let segmentTop = segmentBottom
+      while (segmentTop > 0) {
+        const above = cells[(segmentTop - 1) * COLS + column]
+        if (above.hidden || above.locked) break
+        segmentTop -= 1
+      }
+
+      let destinationRow = segmentBottom
+      let fallOrder = 0
+      for (let row = segmentBottom; row >= segmentTop; row -= 1) {
+        const from = row * COLS + column
+        const item = cells[from].item
+        if (!item) continue
+
+        const to = destinationRow * COLS + column
+        if (to !== from) {
+          cells[to].item = item
+          cells[from].item = null
+          moves.push({
+            id: item.id,
+            from,
+            to,
+            rows: destinationRow - row,
+            order: fallOrder,
+          })
+          fallOrder += 1
+        }
+        destinationRow -= 1
+      }
+
+      segmentBottom = segmentTop - 1
+    }
+  }
+
+  return moves
+}
+
+function settle(state) {
+  const moves = applyGravity(state.cells)
+  state.gravity = {
+    revision: state.gravity.revision + 1,
+    moves,
+  }
 }
 
 function loadSavedCells() {
@@ -89,8 +156,11 @@ function loadSavedCells() {
 }
 
 function initialCells() {
-  if (DEBUG_GRID) return cellsFromDebugGrid(DEBUG_GRID)
-  return loadSavedCells() ?? cellsFromDebugGrid(DEFAULT_BOARD_STATE)
+  const cells = DEBUG_GRID
+    ? cellsFromDebugGrid(DEBUG_GRID)
+    : loadSavedCells() ?? cellsFromDebugGrid(DEFAULT_BOARD_STATE)
+  applyGravity(cells)
+  return cells
 }
 
 // Two items merge only if both are Numbers of the same item type and value, so
@@ -139,6 +209,7 @@ const gridSlice = createSlice({
     cols: COLS,
     rows: ROWS,
     cells: initialCells(),
+    gravity: { revision: 0, moves: [] },
   },
   reducers: {
     moveItem: (state, action) => {
@@ -150,6 +221,7 @@ const gridSlice = createSlice({
       }
       target.item = source.item
       source.item = null
+      settle(state)
     },
     swapItems: (state, action) => {
       const { from, to } = action.payload
@@ -168,6 +240,7 @@ const gridSlice = createSlice({
       const sourceItem = source.item
       source.item = target.item
       target.item = sourceItem
+      settle(state)
     },
     mergeItems: (state, action) => {
       const { from, to } = action.payload
@@ -202,6 +275,7 @@ const gridSlice = createSlice({
           state.cells[index].locked = Boolean(state.cells[index].item)
         }
       }
+      settle(state)
     },
     // Drops a value-1 number of the generator's own type into `to`, which the
     // caller picks with nearestOpenCell so it can animate along the same path.
@@ -220,10 +294,17 @@ const gridSlice = createSlice({
       ) {
         return
       }
-      target.item = { kind: 'number', type: generator.type, value: 1 }
+      target.item = {
+        id: action.payload.id ?? itemId(),
+        kind: 'number',
+        type: generator.type,
+        value: 1,
+      }
+      settle(state)
     },
     resetBoard: (state) => {
       state.cells = Array.from({ length: CELL_COUNT }, emptyCell)
+      state.gravity = { revision: state.gravity.revision + 1, moves: [] }
     },
   },
 })

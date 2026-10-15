@@ -38,11 +38,10 @@ function makeFrame(phase) {
   return rows.join('\n')
 }
 
-function AsciiSphere({ onClick }) {
+function AsciiSphere() {
   const [frame, setFrame] = useState(() => makeFrame(0))
   const phaseRef = useRef(0)
   const dragRef = useRef(null)
-  const suppressClickRef = useRef(false)
 
   useEffect(() => {
     let animationFrame
@@ -94,36 +93,24 @@ function AsciiSphere({ onClick }) {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
 
-    suppressClickRef.current = drag.moved
     dragRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
   }
 
-  const handleClick = (event) => {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false
-      event.preventDefault()
-      return
-    }
-
-    onClick()
-  }
-
   return (
-    <button
+    <div
       className="ascii-sphere"
-      type="button"
-      onClick={handleClick}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}
-      aria-label="Open game board"
+      role="img"
+      aria-label="Rotating world"
     >
       <pre aria-hidden="true">{frame}</pre>
-    </button>
+    </div>
   )
 }
 

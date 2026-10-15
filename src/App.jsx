@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import {
+  BOARD_IDS,
   createItemId,
   dropOutcome,
   mergeItems,
   moveItem,
   nearestOpenCell,
+  selectActiveBoardState,
+  selectBoard,
   spawnItem,
   store,
   swapItems,
@@ -14,6 +17,7 @@ import Cell from './Cell.jsx'
 import BoardDitherCanvas from './BoardDitherCanvas.jsx'
 import DebugMenu from './DebugMenu.jsx'
 import AsciiSphere from './AsciiSphere.jsx'
+import AsciiBoardButton from './AsciiBoardButton.jsx'
 import { MAX_ENERGY, useEnergy } from './energy.js'
 import './App.css'
 
@@ -180,7 +184,8 @@ function EnergyCounter({ energy }) {
 }
 
 function GameBoard({ active, onBack }) {
-  const { cols, rows, cells, gravity } = useSelector((state) => state.grid)
+  const { cols, rows } = useSelector((state) => state.grid)
+  const { cells, gravity } = useSelector(selectActiveBoardState)
   const dispatch = useDispatch()
   const { energy, secondsToNext, spendEnergy } = useEnergy()
 
@@ -239,7 +244,7 @@ function GameBoard({ active, onBack }) {
       const origin = cellCenter(from)
       const id = createItemId()
       dispatch(spawnItem({ from, to, id }))
-      const settledGrid = store.getState().grid
+      const settledGrid = selectActiveBoardState(store.getState())
       suppressSettledGravity(settledGrid, [id])
       const landedAt = settledGrid.cells.findIndex((cell) => cell.item?.id === id)
       const destination = cellCenter(landedAt)
@@ -405,7 +410,7 @@ function GameBoard({ active, onBack }) {
       if (outcome === 'move') {
         const draggedId = currentCells[session.index].item.id
         dispatch(moveItem({ from: session.index, to }))
-        const settledGrid = store.getState().grid
+        const settledGrid = selectActiveBoardState(store.getState())
         suppressSettledGravity(settledGrid, [draggedId])
         restingTarget = settledGrid.cells.findIndex((cell) => cell.item?.id === draggedId)
         const restingDestination = cellCenter(restingTarget)
@@ -437,7 +442,7 @@ function GameBoard({ active, onBack }) {
         const draggedId = currentCells[session.index].item.id
         const displacedId = currentCells[to].item.id
         dispatch(swapItems({ from: session.index, to }))
-        const settledGrid = store.getState().grid
+        const settledGrid = selectActiveBoardState(store.getState())
         suppressSettledGravity(settledGrid, [draggedId, displacedId])
         const settledCells = settledGrid.cells
         restingTarget = settledCells.findIndex((cell) => cell.item?.id === draggedId)
@@ -489,9 +494,9 @@ function GameBoard({ active, onBack }) {
       } else if (outcome === 'merge') {
         const mergedId = currentCells[to].item.id
         dispatch(mergeItems({ from: session.index, to }))
-        restingTarget = store
-          .getState()
-          .grid.cells.findIndex((cell) => cell.item?.id === mergedId)
+        restingTarget = selectActiveBoardState(store.getState()).cells.findIndex(
+          (cell) => cell.item?.id === mergedId,
+        )
         pulseItem(restingTarget)
       } else {
         session.element.animate(
@@ -603,20 +608,43 @@ function GameBoard({ active, onBack }) {
 }
 
 function World({ onOpenBoard }) {
+  const positions = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+
   return (
     <main className="screen world-screen">
-      <AsciiSphere onClick={onOpenBoard} />
+      <div className="world-map">
+        <AsciiSphere />
+        {BOARD_IDS.map((boardId, index) => (
+          <AsciiBoardButton
+            key={boardId}
+            boardId={boardId}
+            position={positions[index]}
+            onClick={onOpenBoard}
+          />
+        ))}
+      </div>
     </main>
   )
 }
 
 function App() {
-  const [screen, setScreen] = useState('gameBoard')
+  const [screen, setScreen] = useState('world')
+  const dispatch = useDispatch()
+  const activeBoardId = useSelector((state) => state.grid.activeBoardId)
+
+  const openBoard = (boardId) => {
+    dispatch(selectBoard(boardId))
+    setScreen('gameBoard')
+  }
 
   return (
     <div className="app">
-      <World onOpenBoard={() => setScreen('gameBoard')} />
-      <GameBoard active={screen === 'gameBoard'} onBack={() => setScreen('world')} />
+      <World onOpenBoard={openBoard} />
+      <GameBoard
+        key={activeBoardId}
+        active={screen === 'gameBoard'}
+        onBack={() => setScreen('world')}
+      />
       <div className="goal-container">
         <div className="marquee-track">
           <span className="marquee-text">{(TITLE + ' \u00A0 ').repeat(20)}</span>

@@ -19,6 +19,12 @@
   place-items: center;
 }
 
+.world-map {
+  position: relative;
+  width: min(92vw, 460px);
+  height: min(78dvh, 650px);
+}
+
 .game-board-screen {
   z-index: 1;
   transform: translate3d(0, 0, 0);
@@ -56,10 +62,10 @@
 }
 
 .ascii-sphere {
-  display: block;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   color: #000;
   cursor: grab;
   touch-action: none;
@@ -81,6 +87,71 @@
   font-weight: 400;
   line-height: 0.62;
   white-space: pre;
+}
+
+.ascii-board-button {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ascii-board-button pre {
+  margin: 0;
+  font-family: monospace;
+  font-size: min(2.8vw, 11px);
+  font-weight: 400;
+  line-height: 0.62;
+  white-space: pre;
+}
+
+.ascii-board-button span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: clamp(2.5rem, 10vw, 4rem);
+  font-weight: 800;
+  line-height: 1;
+  -webkit-text-stroke: 0.08em #fff;
+  paint-order: stroke fill;
+}
+
+.ascii-board-button:focus-visible {
+  outline: 2px solid #000;
+  outline-offset: 4px;
+}
+
+.ascii-board-button:active {
+  transform: scale(0.96);
+}
+
+.board-top-left {
+  right: calc(50% + 4.5rem);
+  bottom: calc(50% + 5rem);
+}
+
+.board-top-right {
+  bottom: calc(50% + 5rem);
+  left: calc(50% + 4.5rem);
+}
+
+.board-bottom-left {
+  top: calc(50% + 5rem);
+  right: calc(50% + 4.5rem);
+}
+
+.board-bottom-right {
+  top: calc(50% + 5rem);
+  left: calc(50% + 4.5rem);
 }
 
 /* Marquee title, matching NUMBER GACHA */
@@ -380,7 +451,7 @@
 
   .board {
     top: auto;
-    bottom: 10dvh;
+    bottom: 0;
     transform: translateX(-50%);
 
   }

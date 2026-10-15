@@ -4,10 +4,11 @@ import { getItemType } from './itemTypes.js'
 
 export const COLS = 6
 export const ROWS = 8
+export const BOARD_IDS = [1, 2, 3, 4]
 
 const CELL_COUNT = COLS * ROWS
 const PREVIOUS_CELL_COUNT = COLS * 9
-const STORAGE_KEY = 'merge.board.v2'
+const STORAGE_KEY = 'merge.boards.v4'
 
 const emptyCell = () => ({ hidden: false, locked: false, item: null })
 const itemId = () =>
@@ -17,7 +18,7 @@ const itemId = () =>
 export const createItemId = itemId
 
 // '<type>G' -> generator, '<type><int>' -> number. The type prefix is required.
-function itemFromDebugValue(value) {
+function itemFromDebugValue(value, boardId) {
   const match = typeof value === 'string' && /^([a-z]+)(G|\d+)$/i.exec(value)
   if (!match) {
     throw new Error(
@@ -25,13 +26,16 @@ function itemFromDebugValue(value) {
     )
   }
   const [, typeId, body] = match
-  getItemType(typeId)
+  const itemType = getItemType(typeId)
+  if (!itemType.boardIds.includes(boardId)) {
+    throw new Error(`Item type "${typeId}" is not available on board ${boardId}`)
+  }
   return body === 'G'
     ? { id: itemId(), kind: 'generator', type: typeId }
     : { id: itemId(), kind: 'number', type: typeId, value: Number(body) }
 }
 
-function cellFromDebugValue(value) {
+function cellFromDebugValue(value, boardId) {
   if (value === null || value === undefined) {
     return { hidden: true, locked: false, item: null }
   }
@@ -40,7 +44,7 @@ function cellFromDebugValue(value) {
   const hiddenMatch = typeof value === 'string' && /^\{\{(.+)\}\}$/.exec(value)
   const lockedMatch =
     !hiddenMatch && typeof value === 'string' && /^\{([^{}]+)\}$/.exec(value)
-  const item = itemFromDebugValue(hiddenMatch?.[1] ?? lockedMatch?.[1] ?? value)
+  const item = itemFromDebugValue(hiddenMatch?.[1] ?? lockedMatch?.[1] ?? value, boardId)
   if ((hiddenMatch || lockedMatch) && item.kind !== 'number') {
     throw new Error(
       `${hiddenMatch ? 'Hidden' : 'Locked'} cell ${JSON.stringify(value)} must contain a Number`,
@@ -49,18 +53,21 @@ function cellFromDebugValue(value) {
   return { hidden: Boolean(hiddenMatch), locked: Boolean(lockedMatch), item }
 }
 
-function cellsFromDebugGrid(rows) {
+function cellsFromDebugGrid(rows, boardId) {
   const cells = []
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      cells.push(cellFromDebugValue(rows[r]?.[c]))
+      cells.push(cellFromDebugValue(rows[r]?.[c], boardId))
     }
   }
   return cells
 }
 
-function savedItem(item) {
-  getItemType(item?.type)
+function savedItem(item, boardId) {
+  const itemType = getItemType(item?.type)
+  if (!itemType.boardIds.includes(boardId)) {
+    throw new Error(`Item type "${item.type}" does not belong to board ${boardId}`)
+  }
   const id = typeof item.id === 'string' ? item.id : itemId()
   if (item.kind === 'generator') return { id, kind: 'generator', type: item.type }
   if (item.kind === 'number' && Number.isInteger(item.value)) {
@@ -122,45 +129,72 @@ export function applyGravity(cells) {
   return moves
 }
 
-function settle(state) {
-  const moves = applyGravity(state.cells)
-  state.gravity = {
-    revision: state.gravity.revision + 1,
+function settle(board) {
+  const moves = applyGravity(board.cells)
+  board.gravity = {
+    revision: board.gravity.revision + 1,
     moves,
   }
 }
 
-function loadSavedCells() {
+function normalizeSavedCells(saved, boardId) {
+  if (
+    !Array.isArray(saved) ||
+    (saved.length !== CELL_COUNT && saved.length !== PREVIOUS_CELL_COUNT)
+  ) {
+    return null
+  }
+  // The 6x9 board had one extra empty row at the bottom.
+  return saved.slice(0, CELL_COUNT).map((cell) => {
+    const item = cell?.item ? savedItem(cell.item, boardId) : null
+    const hidden = Boolean(cell?.hidden)
+    return {
+      hidden,
+      locked: Boolean(!hidden && cell?.locked && item?.kind === 'number'),
+      item,
+    }
+  })
+}
+
+function loadSavedBoards() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (
-      !Array.isArray(saved) ||
-      (saved.length !== CELL_COUNT && saved.length !== PREVIOUS_CELL_COUNT)
-    ) {
-      return null
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {}
+
+    const boards = {}
+    for (const boardId of BOARD_IDS) {
+      const cells = normalizeSavedCells(saved[boardId], boardId)
+      if (cells) boards[boardId] = cells
     }
-    // The 6x9 board had one extra empty row at the bottom.
-    return saved.slice(0, CELL_COUNT).map((cell) => {
-      const item = cell?.item ? savedItem(cell.item) : null
-      const hidden = Boolean(cell?.hidden)
-      return {
-        hidden,
-        locked: Boolean(!hidden && cell?.locked && item?.kind === 'number'),
-        item,
-      }
-    })
+    return boards
   } catch {
-    // Unreadable or typeless board (saved before item types existed) - start fresh.
-    return null
+    return {}
   }
 }
 
-function initialCells() {
-  const cells = DEBUG_GRID
-    ? cellsFromDebugGrid(DEBUG_GRID)
-    : loadSavedCells() ?? cellsFromDebugGrid(DEFAULT_BOARD_STATE)
+function initialBoard(boardId, savedBoards) {
+  const cells =
+    boardId === 1 && DEBUG_GRID
+      ? cellsFromDebugGrid(DEBUG_GRID, boardId)
+      : savedBoards[boardId] ?? cellsFromDebugGrid(DEFAULT_BOARD_STATE[boardId], boardId)
   applyGravity(cells)
-  return cells
+  return { cells, gravity: { revision: 0, moves: [] } }
+}
+
+function initialBoards() {
+  const savedBoards = loadSavedBoards()
+  return Object.fromEntries(
+    BOARD_IDS.map((boardId) => [boardId, initialBoard(boardId, savedBoards)]),
+  )
+}
+
+function activeBoard(state) {
+  return state.boards[state.activeBoardId]
+}
+
+export function selectActiveBoardState(state) {
+  const { grid } = state
+  return grid.boards[grid.activeBoardId]
 }
 
 // Two items merge only if both are Numbers of the same item type and value, so
@@ -208,25 +242,31 @@ const gridSlice = createSlice({
   initialState: {
     cols: COLS,
     rows: ROWS,
-    cells: initialCells(),
-    gravity: { revision: 0, moves: [] },
+    activeBoardId: BOARD_IDS[0],
+    boards: initialBoards(),
   },
   reducers: {
+    selectBoard: (state, action) => {
+      const boardId = Number(action.payload)
+      if (BOARD_IDS.includes(boardId)) state.activeBoardId = boardId
+    },
     moveItem: (state, action) => {
+      const board = activeBoard(state)
       const { from, to } = action.payload
-      const source = state.cells[from]
-      const target = state.cells[to]
+      const source = board.cells[from]
+      const target = board.cells[to]
       if (!source?.item || source.hidden || source.locked || !target || target.hidden || target.item) {
         return
       }
       target.item = source.item
       source.item = null
-      settle(state)
+      settle(board)
     },
     swapItems: (state, action) => {
+      const board = activeBoard(state)
       const { from, to } = action.payload
-      const source = state.cells[from]
-      const target = state.cells[to]
+      const source = board.cells[from]
+      const target = board.cells[to]
       if (
         !source?.item ||
         source.hidden ||
@@ -240,12 +280,13 @@ const gridSlice = createSlice({
       const sourceItem = source.item
       source.item = target.item
       target.item = sourceItem
-      settle(state)
+      settle(board)
     },
     mergeItems: (state, action) => {
+      const board = activeBoard(state)
       const { from, to } = action.payload
-      const source = state.cells[from]
-      const target = state.cells[to]
+      const source = board.cells[from]
+      const target = board.cells[to]
       if (
         source?.hidden ||
         source?.locked ||
@@ -270,20 +311,21 @@ const gridSlice = createSlice({
           col < COLS - 1 ? to + 1 : null,
         ]
         for (const index of neighbors) {
-          if (index === null || !state.cells[index].hidden) continue
-          state.cells[index].hidden = false
-          state.cells[index].locked = Boolean(state.cells[index].item)
+          if (index === null || !board.cells[index].hidden) continue
+          board.cells[index].hidden = false
+          board.cells[index].locked = Boolean(board.cells[index].item)
         }
       }
-      settle(state)
+      settle(board)
     },
     // Drops a value-1 number of the generator's own type into `to`, which the
     // caller picks with nearestOpenCell so it can animate along the same path.
     spawnItem: (state, action) => {
+      const board = activeBoard(state)
       const { from, to } = action.payload
-      const source = state.cells[from]
+      const source = board.cells[from]
       const generator = source?.item
-      const target = state.cells[to]
+      const target = board.cells[to]
       if (
         source?.hidden ||
         source?.locked ||
@@ -300,29 +342,35 @@ const gridSlice = createSlice({
         type: generator.type,
         value: 1,
       }
-      settle(state)
+      settle(board)
     },
     resetBoard: (state) => {
-      state.cells = Array.from({ length: CELL_COUNT }, emptyCell)
-      state.gravity = { revision: state.gravity.revision + 1, moves: [] }
+      const board = activeBoard(state)
+      board.cells = Array.from({ length: CELL_COUNT }, emptyCell)
+      board.gravity = { revision: board.gravity.revision + 1, moves: [] }
     },
   },
 })
 
-export const { moveItem, swapItems, mergeItems, spawnItem, resetBoard } =
+export const { selectBoard, moveItem, swapItems, mergeItems, spawnItem, resetBoard } =
   gridSlice.actions
 
 export const store = configureStore({
   reducer: { grid: gridSlice.reducer },
 })
 
-let lastSavedCells = store.getState().grid.cells
+let lastSavedBoards = store.getState().grid.boards
 store.subscribe(() => {
-  const { cells } = store.getState().grid
-  if (cells === lastSavedCells) return
-  lastSavedCells = cells
+  const { boards } = store.getState().grid
+  if (boards === lastSavedBoards) return
+  lastSavedBoards = boards
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cells))
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(
+        Object.fromEntries(BOARD_IDS.map((boardId) => [boardId, boards[boardId].cells])),
+      ),
+    )
   } catch {
     // local storage unavailable (private mode, quota) - board just won't persist
   }

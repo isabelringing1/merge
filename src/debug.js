@@ -12,7 +12,7 @@
 // Item types come from itemTypes.js. The type prefix is required - a bare 1 or
 // 'G' throws, since every item must have a type. Hidden-item and locked
 // shorthand must be strings and can only contain Numbers, not Generators.
-export const DEFAULT_BOARD_STATE = [
+const board1 = [
   ['{h2}', 0, 0, 0, 0, '{t2}'],
   ['{{h8}}', '{t8}', 'hG', 'tG', '{t8}', '{{h8}}'],
   ['{{h32}}', '{{t32}}', '{t16}', '{h32}', '{{t64}}', '{{h32}}'],
@@ -22,5 +22,30 @@ export const DEFAULT_BOARD_STATE = [
   ['{{t256}}', '{{h256}}', '{{t128}}', '{{h128}}', '{{t128}}', '{{h512}}'],
   ['{{t256}}', '{{h256}}', '{{t128}}', '{{h128}}', '{{t128}}', '{{h512}}'],
 ]
+
+const cloneBoard = (board) => board.map((row) => [...row])
+
+const board2 = board1.map((row) =>
+  row.map((cell) => (typeof cell === 'string' ? cell.replaceAll('h', 'c') : cell)),
+)
+
+const board3 = cloneBoard(board1)
+board3[0][0] = '{t2}'
+board3[0][5] = '{h2}'
+board3[1][2] = 'tG'
+board3[1][3] = 'hG'
+
+const board4 = cloneBoard(board1)
+board4[0][0] = '{h4}'
+board4[0][5] = '{t4}'
+board4[1][1] = '{h8}'
+board4[1][4] = '{t8}'
+
+export const DEFAULT_BOARD_STATE = {
+  1: board1,
+  2: board2,
+  3: board3,
+  4: board4,
+}
 
 export const DEBUG_GRID = null
